@@ -5,5 +5,47 @@
     "native": "Lingua Latīna",
     "count": 435,
     "marks": "Macrons"
+  },
+  {
+    "code": "es",
+    "name": "Spanish",
+    "native": "Español",
+    "count": 400,
+    "marks": null
+  },
+  {
+    "code": "en",
+    "name": "English",
+    "native": "English",
+    "count": 400,
+    "marks": null
+  },
+  {
+    "code": "fr",
+    "name": "French",
+    "native": "Français",
+    "count": 400,
+    "marks": null
+  },
+  {
+    "code": "it",
+    "name": "Italian",
+    "native": "Italiano",
+    "count": 400,
+    "marks": null
+  },
+  {
+    "code": "ru",
+    "name": "Russian",
+    "native": "Русский",
+    "count": 400,
+    "marks": null
+  },
+  {
+    "code": "zh",
+    "name": "Chinese",
+    "native": "中文",
+    "count": 400,
+    "marks": null
   }
 ]
