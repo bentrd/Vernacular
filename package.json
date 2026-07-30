@@ -1,0 +1,11 @@
+{
+  "name": "vernacular",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Learn Latin, one word at a time. A minimal PWA with daily push notifications.",
+  "dependencies": {
+    "@vercel/blob": "^1.1.1",
+    "web-push": "^3.6.7"
+  }
+}

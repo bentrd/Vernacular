@@ -1,0 +1,42 @@
+# Sends push notifications by calling the Vercel API on a schedule.
+# Times are UTC. Current schedule (≈ Paris time, CEST = UTC+2):
+#   07:30 UTC → 09:30  new word
+#   11:30 UTC → 13:30  new word
+#   15:30 UTC → 17:30  new word
+#   19:00 UTC → 21:00  review quiz prompt
+# GitHub cron can drift by a few minutes — that's normal.
+name: Send word notifications
+
+on:
+  schedule:
+    - cron: "30 7 * * *"
+    - cron: "30 11 * * *"
+    - cron: "30 15 * * *"
+    - cron: "0 19 * * *"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Notification type"
+        type: choice
+        options: [word, review]
+        default: word
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send notification
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            MODE="${{ inputs.mode }}"
+          elif [ "${{ github.event.schedule }}" = "0 19 * * *" ]; then
+            MODE="review"
+          else
+            MODE="word"
+          fi
+          echo "Sending mode=$MODE"
+          curl -fsS "$APP_URL/api/cron?mode=$MODE" \
+            -H "Authorization: Bearer $CRON_SECRET"
