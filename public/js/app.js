@@ -94,9 +94,11 @@ function wordCardHTML(w, { veiled = false } = {}) {
       <span class="w-pos">${esc(POS_LABEL[w.pos] || w.pos)}</span>
       <div class="hidden-part">
         <div class="w-en">${esc(w.en)}</div>
+        <div class="w-fr">${esc(w.fr)}</div>
         <div class="w-ex">
           <div class="la">“${esc(w.ex)}”</div>
           <div class="en">${esc(w.exEn)}</div>
+          <div class="fr">${esc(w.exFr)}</div>
         </div>
       </div>
       ${veiled ? '<div class="reveal-hint">Tap to reveal meaning</div>' : ''}
@@ -264,7 +266,7 @@ function renderLibList() {
   let entries = db.dictEntries();
   if (libFilter !== 'all') entries = entries.filter((x) => db.statusOf(x.entry) === libFilter);
   if (q) entries = entries.filter(({ word }) =>
-    stripMacrons(word.la).includes(q) || word.en.toLowerCase().includes(q));
+    stripMacrons(word.la).includes(q) || word.en.toLowerCase().includes(q) || stripMacrons(word.fr).includes(q));
   entries.sort((a, b) => stripMacrons(a.word.la).localeCompare(stripMacrons(b.word.la)));
 
   if (!entries.length) {
@@ -282,7 +284,7 @@ function renderLibList() {
       <span class="status-dot ${db.statusOf(entry)}"></span>
       <span class="wr-main">
         <span class="wr-la">${esc(word.la)}</span>
-        <span class="wr-en" style="display:block">${esc(word.en)}</span>
+        <span class="wr-en" style="display:block">${esc(word.en)} · ${esc(word.fr)}</span>
       </span>
     </button>`).join('')}</div>`;
 
@@ -415,12 +417,12 @@ function renderChoice(body, { word }, onAnswer) {
   body.innerHTML = `
     <div class="quiz-q">
       <div class="q-label">${latinFirst ? 'What does this mean?' : 'Which word is this?'}</div>
-      <div class="q-word ${latinFirst ? '' : 'en-mode'}">${esc(latinFirst ? word.la : word.en)}</div>
+      <div class="q-word ${latinFirst ? '' : 'en-mode'}">${latinFirst ? esc(word.la) : `${esc(word.en)} · ${esc(word.fr)}`}</div>
       ${latinFirst ? `<div class="q-hint">${esc(word.g)}</div>` : ''}
     </div>
     <div class="options">
       ${options.map((o) => `<button class="option ${latinFirst ? '' : 'latin'}" data-id="${esc(o.id)}">
-        ${esc(latinFirst ? o.en : o.la)}</button>`).join('')}
+        ${latinFirst ? `${esc(o.en)} · ${esc(o.fr)}` : esc(o.la)}</button>`).join('')}
     </div>`;
   let answered = false;
   body.querySelector('.options').addEventListener('click', (e) => {
@@ -444,6 +446,7 @@ function renderFlash(body, { word }, onAnswer) {
       <div class="f-g">${esc(word.g)}</div>
       <div class="f-back" style="display:none">
         <div class="f-en">${esc(word.en)}</div>
+        <div class="f-fr">${esc(word.fr)}</div>
         <div class="f-ex">“${esc(word.ex)}”<br/><span style="font-style:normal;font-family:var(--sans);font-size:13px">${esc(word.exEn)}</span></div>
       </div>
       <div class="f-tap">Tap to flip</div>
@@ -466,7 +469,7 @@ function renderType(body, { word }, onAnswer) {
   body.innerHTML = `
     <div class="quiz-q">
       <div class="q-label">Type the Latin for</div>
-      <div class="q-word en-mode">${esc(word.en)}</div>
+      <div class="q-word en-mode">${esc(word.en)} · ${esc(word.fr)}</div>
       <div class="q-hint">${esc(word.g.replace(word.la, '…'))}</div>
     </div>
     <input class="type-input" id="t-input" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" placeholder="scrībe hīc…" enterkeyhint="done" />

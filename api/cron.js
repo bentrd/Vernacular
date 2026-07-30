@@ -33,7 +33,7 @@ export default async function handler(req, res) {
         const w = words[sub.index % words.length];
         payload = {
           title: `${w.la} — novum verbum`,
-          body: `${w.g}\n${w.en}`,
+          body: `${w.g}\n${w.en} · ${w.fr}`,
           url: `/?word=${w.id}`,
           tag: `word-${w.id}`,
         };
