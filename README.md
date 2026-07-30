@@ -3,19 +3,19 @@
 **Learn Latin, one word at a time.**
 
 A minimal, installable web app (PWA) that broadens your Latin vocabulary with
-push notifications throughout the day — plus flashcards, quizzes, and a
+push notifications throughout the day, plus flashcards, quizzes, and a
 spaced-repetition review system. Designed in the spirit of Apple and OpenAI:
 quiet, warm, typographic.
 
 ## Features
 
-- 📲 **Installable on iPhone** — Add to Home Screen from Safari; it looks and feels native.
-- 🔔 **Push notifications** — three new words a day and one evening review prompt (iOS 16.4+, once installed).
-- 📖 **Personal library** — every word you collect, searchable, with grammar info and example sentences.
-- 🧠 **Spaced repetition** — Leitner boxes decide when each word is due for review.
-- 🃏 **Practice modes** — flashcards, multiple choice (Latin ↔ English), and type-the-Latin.
-- 🔥 **Streaks & daily goals** — gentle accountability.
-- 💾 **Local-first** — everything lives in `localStorage`; export/import your library as JSON anytime. No accounts, no database.
+- 📲 **Installable on iPhone**: add to Home Screen from Safari; it looks and feels native.
+- 🔔 **Push notifications**: three new words a day and one evening review prompt (iOS 16.4+, once installed).
+- 📖 **Personal library**: every word you collect, searchable, with grammar info and example sentences.
+- 🧠 **Spaced repetition**: Leitner boxes decide when each word is due for review.
+- 🃏 **Practice modes**: flashcards, multiple choice (Latin ↔ English), and type-the-Latin.
+- 🔥 **Streaks & daily goals**: gentle accountability.
+- 💾 **Local-first**: everything lives in `localStorage`; export/import your library as JSON anytime. No accounts, no database.
 
 ## Architecture
 
@@ -44,11 +44,11 @@ Vercel environment variables:
 
 GitHub repo settings:
 
-- **Variable** `APP_URL` — the production URL (e.g. `https://vernacular.vercel.app`)
-- **Secret** `CRON_SECRET` — same value as on Vercel
+- **Variable** `APP_URL`: the production URL (e.g. `https://vernacular.vercel.app`)
+- **Secret** `CRON_SECRET`: same value as on Vercel
 
 Notification times are plain cron lines in
-[.github/workflows/notify.yml](.github/workflows/notify.yml) (UTC) — edit and push to change them.
+[.github/workflows/notify.yml](.github/workflows/notify.yml) (UTC): edit and push to change them.
 
 ## iPhone setup
 

@@ -5,7 +5,7 @@ import * as push from './push.js';
 const view = document.getElementById('view');
 const tabbar = document.getElementById('tabbar');
 
-// ——— tiny helpers ———
+// tiny helpers
 const esc = (s) =>
   String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -51,7 +51,7 @@ const POS_LABEL = {
   interjection: 'interjection', phrase: 'phrase',
 };
 
-// ——— routing ———
+// routing
 const routes = { today: renderToday, library: renderLibrary, practice: renderPractice, settings: renderSettings };
 let current = 'today';
 let sessionActive = false;
@@ -68,7 +68,7 @@ function render() {
   closeSheet();
   routes[current]();
   $$('.tab', tabbar).forEach((t) => t.classList.toggle('active', t.dataset.route === current));
-  window.scrollTo(0, 0);
+  document.getElementById('scroll').scrollTop = 0;
 }
 
 tabbar.addEventListener('click', (e) => {
@@ -85,7 +85,7 @@ window.addEventListener('hashchange', () => {
   }
 });
 
-// ——— word card fragment ———
+// word card fragment
 function wordCardHTML(w, { veiled = false } = {}) {
   return `
     <div class="card wordcard ${veiled ? 'veiled' : ''}" data-word-card>
@@ -105,7 +105,7 @@ function wordCardHTML(w, { veiled = false } = {}) {
     </div>`;
 }
 
-// ——— TODAY ———
+// TODAY
 function renderToday() {
   const s = db.getState();
   const t = db.todayCounts();
@@ -227,7 +227,7 @@ function showInstallSheet() {
   $('#close-install', el).addEventListener('click', closeSheet);
 }
 
-// ——— LIBRARY ———
+// LIBRARY
 let libFilter = 'all';
 let libQuery = '';
 
@@ -317,14 +317,14 @@ function showWordSheet(id) {
   $('#ws-remove', el)?.addEventListener('click', () => { db.removeWord(id); closeSheet(); render(); toast(`“${w.la}” removed`); });
 }
 
-// ——— PRACTICE ———
+// PRACTICE
 function renderPractice() {
   const c = db.counts();
   const enough = c.total >= 4;
   view.innerHTML = `
     <div class="eyebrow">Exercitium</div>
     <h1 class="title">Practice</h1>
-    <p class="subtitle">${c.due > 0 ? `${c.due} word${c.due === 1 ? '' : 's'} due for review.` : 'Nothing due — free practice below.'}</p>
+    <p class="subtitle">${c.due > 0 ? `${c.due} word${c.due === 1 ? '' : 's'} due for review.` : 'Nothing due. Free practice below.'}</p>
 
     ${c.due > 0 ? `
       <button class="banner" id="p-due" style="width:100%;text-align:left">
@@ -349,7 +349,7 @@ function renderPractice() {
     <div class="card tappable mode-card" data-mode="type">
       <span class="m-icon">⌨️</span>
       <span style="flex:1"><span class="m-title" style="display:block">Type the Latin</span>
-      <span class="m-sub">The hardest — spell it out</span></span>
+      <span class="m-sub">The hardest: spell it out</span></span>
       <span class="m-chev">›</span>
     </div>
     ${!enough ? `<p class="subtitle" style="margin-top:16px">Collect at least 4 words to start practicing.</p>` : ''}
@@ -509,7 +509,7 @@ function sessionDone(right, total) {
   sessionActive = false;
   const pct = Math.round((right / total) * 100);
   const verdict = pct === 100 ? 'Perfectum!' : pct >= 70 ? 'Bene factum!' : 'Repetītiō māter studiōrum.';
-  const sub = pct === 100 ? 'A flawless round.' : pct >= 70 ? 'Well done — keep the streak alive.' : 'Repetition is the mother of learning. Go again?';
+  const sub = pct === 100 ? 'A flawless round.' : pct >= 70 ? 'Well done. Keep the streak alive.' : 'Repetition is the mother of learning. Go again?';
   view.innerHTML = `
     <div class="session-done">
       <div class="d-icon">${pct === 100 ? '🏆' : pct >= 70 ? '🎉' : '📚'}</div>
@@ -524,7 +524,7 @@ function sessionDone(right, total) {
   $('#d-again').addEventListener('click', renderPractice);
 }
 
-// ——— SETTINGS ———
+// SETTINGS
 async function renderSettings() {
   const s = db.getState();
   const supported = push.pushSupported();
@@ -551,7 +551,7 @@ async function renderSettings() {
         <button class="setting-row" id="n-toggle-row">
           <span class="s-main"><span class="s-title">Daily word notifications</span>
           <span class="s-sub">${denied
-            ? 'Blocked — allow notifications for Vernacular in iOS Settings'
+            ? 'Blocked. Allow notifications for Vernacular in iOS Settings'
             : '3 new words during the day, one review prompt in the evening'}</span></span>
           <span class="toggle ${sub ? 'on' : ''}" id="n-toggle"></span>
         </button>
@@ -615,17 +615,17 @@ async function renderSettings() {
       toggle.classList.add('on');
       try {
         await push.enablePush();
-        toast('Notifications on — first word coming soon');
+        toast('Notifications on. First word coming soon');
       } catch (err) {
         toggle.classList.remove('on');
-        toast(err.message === 'denied' ? 'Permission was denied' : 'Could not subscribe — try again');
+        toast(err.message === 'denied' ? 'Permission was denied' : 'Could not subscribe, try again');
       }
     }
     renderSettings();
   });
 
   $('#n-test')?.addEventListener('click', async () => {
-    try { await push.sendTestPush(); toast('Test sent — check in a few seconds'); }
+    try { await push.sendTestPush(); toast('Test sent. Check in a few seconds'); }
     catch { toast('Could not send test'); }
   });
 
@@ -666,7 +666,7 @@ async function renderSettings() {
   });
 }
 
-// ——— boot ———
+// boot
 async function handleLaunchParams() {
   const params = new URLSearchParams(location.search);
   const wordId = params.get('word');

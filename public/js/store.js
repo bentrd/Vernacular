@@ -18,7 +18,7 @@ export async function loadWords() {
 export const allWords = () => words;
 export const wordById = (id) => byId?.get(id);
 
-// ——— date helpers (local time) ———
+// date helpers (local time)
 const pad = (n) => String(n).padStart(2, '0');
 export function dayStr(d = new Date()) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -33,7 +33,7 @@ export function dayDiff(a, b) {
   return Math.round((new Date(b) - new Date(a)) / 86400000);
 }
 
-// ——— state ———
+// state
 function defaults() {
   return {
     unlocked: 0,
@@ -77,7 +77,7 @@ export function todayCounts() {
   return s.stats.byDay[dayStr()] || { new: 0, reviews: 0 };
 }
 
-// ——— dictionary ———
+// dictionary
 export function addWord(id) {
   const s = getState();
   if (s.dict[id]) return false;
@@ -100,7 +100,7 @@ export function nextLockedWord() {
 }
 
 export function ensureUnlocked(count) {
-  // Server has delivered `count` words via push — make sure they're all in the library.
+  // Server has delivered `count` words via push; make sure they're all in the library.
   const s = getState();
   let added = 0;
   for (let i = 0; i < Math.min(count, words?.length || 0); i++) {
@@ -149,7 +149,7 @@ export function counts() {
   };
 }
 
-// ——— reviews (SRS) ———
+// reviews (SRS)
 export function recordReview(id, ok) {
   const s = getState();
   const e = s.dict[id];
@@ -188,7 +188,7 @@ export function setGoal(n) {
   save();
 }
 
-// ——— export / import ———
+// export / import
 export function exportData() {
   return JSON.stringify(
     { app: 'vernacular', version: 1, exportedAt: new Date().toISOString(), state: getState() },

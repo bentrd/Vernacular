@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -)",
+      "Bash(node --check public/js/app.js)",
+      "Bash(node --check public/sw.js)",
+      "Bash(node --check api/cron.js)",
+      "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('public/data/words.json'\\)\\)\")",
+      "Bash(git add *)",
+      "Bash(git commit -q -m 'Fix iOS tab bar overflow; remove all em dashes from copy *)",
+      "Bash(git push *)"
+    ]
+  }
+}

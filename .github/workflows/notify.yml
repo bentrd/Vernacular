@@ -4,7 +4,7 @@
 #   11:30 UTC → 13:30  new word
 #   15:30 UTC → 17:30  new word
 #   19:00 UTC → 21:00  review quiz prompt
-# GitHub cron can drift by a few minutes — that's normal.
+# GitHub cron can drift by a few minutes; that's normal.
 name: Send word notifications
 
 on:

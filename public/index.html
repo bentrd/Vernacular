@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no, interactive-widget=resizes-content" />
   <title>Vernacular</title>
   <meta name="description" content="Learn Latin, one word at a time." />
 
@@ -19,7 +19,10 @@
   <link rel="stylesheet" href="/css/main.css" />
 </head>
 <body>
-  <main id="view" class="view"></main>
+  <div class="statusbar-veil" aria-hidden="true"></div>
+  <div class="scroll" id="scroll">
+    <main id="view" class="view"></main>
+  </div>
 
   <nav class="tabbar" id="tabbar">
     <button class="tab" data-route="today" aria-label="Today">

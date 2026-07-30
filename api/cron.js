@@ -1,5 +1,5 @@
 // Called on a schedule (GitHub Actions) to push new words / review prompts.
-// GET /api/cron?mode=word|review — requires Authorization: Bearer CRON_SECRET.
+// GET /api/cron?mode=word|review; requires Authorization: Bearer CRON_SECRET.
 import { readFileSync } from 'node:fs';
 import { loadSubs, saveSubs } from '../lib/subs.mjs';
 import { sendPush } from '../lib/webpush.mjs';
@@ -32,7 +32,7 @@ export default async function handler(req, res) {
       if (mode === 'word') {
         const w = words[sub.index % words.length];
         payload = {
-          title: `${w.la} — novum verbum`,
+          title: `${w.la} · novum verbum`,
           body: `${w.g}\n${w.en} · ${w.fr}`,
           url: `/?word=${w.id}`,
           tag: `word-${w.id}`,
@@ -47,7 +47,7 @@ export default async function handler(req, res) {
         const w = words[Math.floor(Math.random() * delivered)];
         payload = {
           title: `Quid significat “${w.la}”?`,
-          body: 'Time for your daily review — tap to test yourself.',
+          body: 'Time for your daily review. Tap to test yourself.',
           url: '/?review=1',
           tag: 'review',
         };
