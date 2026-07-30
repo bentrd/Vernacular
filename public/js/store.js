@@ -50,6 +50,20 @@ export const allWords = () => pack?.words || [];
 export const wordById = (id) => byId?.get(id);
 export const packStrings = () => pack?.strings || {};
 
+const foldKey = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+export function searchDictionary(q, limit = 50) {
+  if (!pack || !q) return [];
+  if (!pack.searchIndex) {
+    pack.searchIndex = pack.words.map((w) =>
+      foldKey([w.hw, w.en || '', w.fr || '', w.rom || ''].join(' ')));
+  }
+  const out = [];
+  for (let i = 0; i < pack.words.length && out.length < limit; i++) {
+    if (pack.searchIndex[i].includes(q)) out.push(pack.words[i]);
+  }
+  return out;
+}
+
 // diacritic display (e.g. Latin macrons), toggled in settings
 const stripCombining = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '');
 export function display(s) {

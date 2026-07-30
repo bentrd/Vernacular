@@ -45,7 +45,7 @@ export default async function handler(req, res) {
           const w = words[(ls.index || 0) % words.length];
           payload = {
             title: `${w.hw} · ${strings.newWord || 'new word'}`,
-            body: `${w.g}\n${[w.rom, w.en, w.fr].filter(Boolean).join(' · ')}`,
+            body: [w.g, [w.rom, w.en, w.fr].filter(Boolean).join(' · ')].filter(Boolean).join('\n'),
             url: `/?lang=${code}&word=${w.id}`,
             tag: `word-${code}-${w.id}`,
           };

@@ -102,22 +102,25 @@ window.addEventListener('hashchange', () => {
   }
 });
 
+// meanings, whichever of en/fr exist
+const gloss = (w) => [w.en, w.fr].filter(Boolean).join(' \u00b7 ');
+
 // word card fragment
 function wordCardHTML(w, { veiled = false } = {}) {
   return `
     <div class="card wordcard ${veiled ? 'veiled' : ''}" data-word-card>
       <div class="w-la">${esc(D(w.hw))}</div>
       ${w.rom ? `<div class="w-rom">${esc(w.rom)}</div>` : ''}
-      <div class="w-g">${esc(D(w.g))}</div>
-      <span class="w-pos">${esc(w.pos)}</span>
+      ${w.g ? `<div class="w-g">${esc(D(w.g))}</div>` : ''}
+      ${w.pos ? `<span class="w-pos">${esc(w.pos)}</span>` : ''}
       <div class="hidden-part">
-        <div class="w-en">${esc(w.en)}</div>
-        <div class="w-fr">${esc(w.fr)}</div>
-        <div class="w-ex">
+        ${w.en ? `<div class="w-en">${esc(w.en)}</div>` : ''}
+        ${w.fr ? `<div class="${w.en ? 'w-fr' : 'w-en'}">${esc(w.fr)}</div>` : ''}
+        ${w.ex ? `<div class="w-ex">
           <div class="la">“${esc(D(w.ex))}”</div>
           <div class="en">${esc(w.exEn)}</div>
           <div class="fr">${esc(w.exFr)}</div>
-        </div>
+        </div>` : ''}
       </div>
       ${veiled ? '<div class="reveal-hint">Tap to reveal meaning</div>' : ''}
     </div>`;
@@ -320,11 +323,13 @@ function renderLibList() {
   let entries = db.dictEntries();
   if (libFilter !== 'all') entries = entries.filter((x) => db.statusOf(x.entry) === libFilter);
   if (q) entries = entries.filter(({ word }) =>
-    fold(word.hw).includes(q) || word.en.toLowerCase().includes(q) ||
-    fold(word.fr).includes(q) || (word.rom && fold(word.rom).includes(q)));
+    fold(word.hw).includes(q) || (word.en && word.en.toLowerCase().includes(q)) ||
+    (word.fr && fold(word.fr).includes(q)) || (word.rom && fold(word.rom).includes(q)));
   entries.sort((a, b) => fold(a.word.hw).localeCompare(fold(b.word.hw)));
 
-  if (!entries.length) {
+  const dictMatches = q ? db.searchDictionary(q, 50).filter((w) => !db.langState().dict[w.id]) : [];
+
+  if (!entries.length && !dictMatches.length) {
     list.innerHTML = `<div class="card empty" style="margin-top:16px">
       <div class="e-icon">${ICONS.bookOpen}</div>
       <div class="e-title">${db.counts().total === 0 ? 'Your library is empty' : 'Nothing here'}</div>
@@ -334,14 +339,21 @@ function renderLibList() {
     </div>`;
     return;
   }
-  list.innerHTML = `<div class="wordlist">${entries.map(({ id, word, entry }) => `
+  const rowHTML = ({ id, word, entry }) => `
     <button class="wordrow" data-id="${esc(id)}">
-      <span class="status-dot ${db.statusOf(entry)}"></span>
+      <span class="status-dot ${entry ? db.statusOf(entry) : 'locked'}"></span>
       <span class="wr-main">
         <span class="wr-la">${esc(D(word.hw))}${word.rom ? ` <span class="wr-rom">${esc(word.rom)}</span>` : ''}</span>
-        <span class="wr-en" style="display:block">${esc(word.en)} · ${esc(word.fr)}</span>
+        <span class="wr-en" style="display:block">${esc(gloss(word))}</span>
       </span>
-    </button>`).join('')}</div>`;
+    </button>`;
+
+  list.innerHTML = `
+    ${entries.length ? `<div class="wordlist">${entries.map(rowHTML).join('')}</div>` : ''}
+    ${dictMatches.length ? `
+      <div class="section-label">In the dictionary</div>
+      <div class="wordlist">${dictMatches.map((w) => rowHTML({ id: w.id, word: w, entry: null })).join('')}</div>` : ''}
+  `;
 
   list.addEventListener('click', (e) => {
     const row = e.target.closest('.wordrow');
@@ -367,6 +379,16 @@ function showWordSheet(id) {
       <button class="btn danger" id="ws-remove">Remove</button>
     </div>` : ''}
   `);
+  if (!entry) {
+    el.insertAdjacentHTML('beforeend',
+      '<div class="btn-row"><button class="btn accent full" id="ws-add">Add to library</button></div>');
+    $('#ws-add', el).addEventListener('click', () => {
+      db.addWord(id);
+      closeSheet();
+      render();
+      toast(`\u201c${D(w.hw)}\u201d added to your library`);
+    });
+  }
   $('#ws-master', el)?.addEventListener('click', () => { db.setMastered(id); closeSheet(); render(); toast('Marked as mastered'); });
   $('#ws-reset', el)?.addEventListener('click', () => { db.resetProgress(id); closeSheet(); render(); toast('Progress reset'); });
   $('#ws-remove', el)?.addEventListener('click', () => { db.removeWord(id); closeSheet(); render(); toast(`“${D(w.hw)}” removed`); });
@@ -471,12 +493,12 @@ function renderChoice(body, { word }, onAnswer) {
   body.innerHTML = `
     <div class="quiz-q">
       <div class="q-label">${targetFirst ? 'What does this mean?' : 'Which word is this?'}</div>
-      <div class="q-word ${targetFirst ? '' : 'en-mode'}">${targetFirst ? esc(D(word.hw)) : `${esc(word.en)} · ${esc(word.fr)}`}</div>
-      ${targetFirst ? `<div class="q-hint">${esc(word.rom || D(word.g))}</div>` : ''}
+      <div class="q-word ${targetFirst ? '' : 'en-mode'}">${targetFirst ? esc(D(word.hw)) : esc(gloss(word))}</div>
+      ${targetFirst ? `<div class="q-hint">${esc(word.rom || (word.g ? D(word.g) : ''))}</div>` : ''}
     </div>
     <div class="options">
       ${options.map((o) => `<button class="option" data-id="${esc(o.id)}">
-        ${targetFirst ? `${esc(o.en)} · ${esc(o.fr)}` : esc(D(o.hw))}</button>`).join('')}
+        ${targetFirst ? esc(gloss(o)) : esc(D(o.hw))}</button>`).join('')}
     </div>`;
   let answered = false;
   body.querySelector('.options').addEventListener('click', (e) => {
@@ -498,11 +520,11 @@ function renderFlash(body, { word }, onAnswer) {
     <div class="flash-card" id="fcard">
       <div class="f-la">${esc(D(word.hw))}</div>
       ${word.rom ? `<div class="f-rom">${esc(word.rom)}</div>` : ''}
-      <div class="f-g">${esc(D(word.g))}</div>
+      ${word.g ? `<div class="f-g">${esc(D(word.g))}</div>` : ''}
       <div class="f-back" style="display:none">
-        <div class="f-en">${esc(word.en)}</div>
-        <div class="f-fr">${esc(word.fr)}</div>
-        <div class="f-ex">“${esc(D(word.ex))}”<br/><span style="font-style:normal;font-family:var(--sans);font-size:13px">${esc(word.exEn)}</span></div>
+        <div class="f-en">${esc(word.en || word.fr || '')}</div>
+        ${word.en && word.fr ? `<div class="f-fr">${esc(word.fr)}</div>` : ''}
+        ${word.ex ? `<div class="f-ex">“${esc(D(word.ex))}”<br/><span style="font-style:normal;font-family:var(--sans);font-size:13px">${esc(word.exEn)}</span></div>` : ''}
       </div>
       <div class="f-tap">Tap to flip</div>
     </div>
@@ -524,8 +546,8 @@ function renderType(body, { word }, onAnswer) {
   body.innerHTML = `
     <div class="quiz-q">
       <div class="q-label">Type the word for</div>
-      <div class="q-word en-mode">${esc(word.en)} · ${esc(word.fr)}</div>
-      <div class="q-hint">${esc(D(word.g).replace(D(word.hw), '…'))}</div>
+      <div class="q-word en-mode">${esc(gloss(word))}</div>
+      ${word.g ? `<div class="q-hint">${esc(D(word.g).replace(D(word.hw), '…'))}</div>` : ''}
     </div>
     <input class="type-input" id="t-input" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" placeholder="${esc(S('typeHere'))}…" enterkeyhint="done" />
     <div class="type-answer" id="t-answer"></div>
@@ -689,7 +711,9 @@ async function renderSettings() {
     <div class="section-label">About</div>
     <div class="setting-group">
       <div class="setting-row"><span class="s-main"><span class="s-title">Version</span></span><span class="s-value">${APP_VERSION}</span></div>
-      <div class="setting-row"><span class="s-main"><span class="s-title">${esc(pack?.name || '')} pack</span></span><span class="s-value">${db.allWords().length} words</span></div>
+      <div class="setting-row"><span class="s-main"><span class="s-title">${esc(pack?.name || '')} dictionary</span>
+        ${pack?.attribution ? `<span class="s-sub">${esc(pack.attribution)}</span>` : ''}</span>
+        <span class="s-value">${db.allWords().length.toLocaleString('en-US')} words</span></div>
       <div class="setting-row"><span class="s-main"><span class="s-title">Vernacular</span>
         <span class="s-sub">${esc(S('madeWith'))} · your data never leaves this device (except push subscriptions)</span></span></div>
     </div>

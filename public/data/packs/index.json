@@ -3,49 +3,49 @@
     "code": "la",
     "name": "Latin",
     "native": "Lingua Latīna",
-    "count": 435,
+    "count": 15054,
     "marks": "Macrons"
   },
   {
     "code": "es",
     "name": "Spanish",
     "native": "Español",
-    "count": 400,
+    "count": 32000,
     "marks": null
   },
   {
     "code": "en",
     "name": "English",
     "native": "English",
-    "count": 400,
+    "count": 32000,
     "marks": null
   },
   {
     "code": "fr",
     "name": "French",
     "native": "Français",
-    "count": 400,
+    "count": 32000,
     "marks": null
   },
   {
     "code": "it",
     "name": "Italian",
     "native": "Italiano",
-    "count": 400,
+    "count": 32000,
     "marks": null
   },
   {
     "code": "ru",
     "name": "Russian",
     "native": "Русский",
-    "count": 400,
-    "marks": null
+    "count": 32000,
+    "marks": "Stress marks"
   },
   {
     "code": "zh",
     "name": "Chinese",
     "native": "中文",
-    "count": 400,
+    "count": 32000,
     "marks": null
   }
 ]

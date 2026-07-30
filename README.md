@@ -10,7 +10,8 @@ the spirit of Apple and OpenAI: quiet, warm, typographic.
 
 ## Features
 
-- **Seven language packs**: frequency-ordered core vocabulary (CEFR-style A1 to B1), each word with grammar notes, English and French meanings, an example sentence, and romanization where relevant (pinyin, transliteration).
+- **Seven full dictionaries**: 207,000+ words total (32,000 each for Spanish, English, French, Italian, Russian, and Chinese; 15,000 for Latin). A hand-curated core of ~400 words per language carries example sentences and rich grammar notes; behind it sits the full dictionary tier built from real lexicographic data, ordered by corpus frequency. English and French meanings, pinyin for Chinese, transliteration and stress marks for Russian, macrons for Latin.
+- **Dictionary search**: searching the Library also searches the entire dictionary; any word can be added to your learning queue from there.
 - **Per-language everything**: library, streak, daily goal, notifications, and backups are tracked separately for each language. Switch languages from the Today screen.
 - **Installable on iPhone**: add to Home Screen from Safari; it looks and feels native.
 - **Push notifications**: three new words a day and one evening review prompt, per enabled language (iOS 16.4+, once installed).
@@ -29,6 +30,16 @@ api/subscribe.js        per-language push subscriptions (stored in Vercel Blob)
 api/cron.js             sends the pushes; called on a schedule
 .github/workflows/notify.yml   GitHub Actions cron that hits /api/cron
 ```
+
+## Dictionary data
+
+Packs are built by [tools/build-packs.mjs](tools/build-packs.mjs) from open sources:
+
+- [WikDict](https://www.wikdict.com) SQLite exports (Wiktionary-derived, CC BY-SA): bilingual pairs to English and French
+- [CC-CEDICT](https://cc-cedict.org) (CC BY-SA): Chinese, including pinyin, traditional forms, and measure words
+- [FrequencyWords](https://github.com/hermitdave/FrequencyWords) (OpenSubtitles corpus): 50k frequency lists for teaching order
+
+The curated cores live in `tools/core/`. To rebuild, download the sources into a directory and run `node tools/build-packs.mjs <dir>`.
 
 ## Pack format
 
