@@ -3,7 +3,7 @@
   "outputDirectory": "public",
   "functions": {
     "api/*.js": {
-      "includeFiles": "public/data/words.json"
+      "includeFiles": "public/data/packs/**"
     }
   },
   "headers": [

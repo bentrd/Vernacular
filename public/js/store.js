@@ -1,22 +1,62 @@
-// Local state: dictionary, spaced repetition, streaks. Everything lives in localStorage.
-const KEY = 'vernacular:v1';
+// Local state, one namespace per language. Packs are fetched on demand.
+// localStorage 'vernacular:v2' = {
+//   activeLang, accent, showMarks,
+//   langs: { <code>: { dict, unlocked, goal, stats } }
+// }
+const KEY = 'vernacular:v2';
+const LEGACY_KEY = 'vernacular:v1';
 
 // Leitner-style intervals in days, indexed by box. Box 0 = brand new (due today).
 const INTERVALS = [0, 1, 2, 4, 7, 15, 30];
 export const MASTERED_BOX = 4;
+export const DEFAULT_LANG = 'la';
 
-let words = null;
+// packs
+const packCache = new Map();
+let pack = null; // active pack {code, name, native, marks, strings, words}
 let byId = null;
+let index = null; // [{code, name, native, count, marks}]
 
-export async function loadWords() {
-  if (words) return words;
-  const res = await fetch('/data/words.json');
-  words = await res.json();
-  byId = new Map(words.map((w) => [w.id, w]));
-  return words;
+export async function loadIndex() {
+  if (index) return index;
+  const res = await fetch('/data/packs/index.json');
+  index = await res.json();
+  return index;
 }
-export const allWords = () => words;
+
+export async function loadPack(code) {
+  if (packCache.has(code)) return packCache.get(code);
+  const res = await fetch(`/data/packs/${code}.json`);
+  if (!res.ok) throw new Error(`pack ${code} not found`);
+  const p = await res.json();
+  p.byId = new Map(p.words.map((w) => [w.id, w]));
+  packCache.set(code, p);
+  return p;
+}
+
+export async function activatePack(code) {
+  pack = await loadPack(code);
+  byId = pack.byId;
+  const s = getState();
+  if (s.activeLang !== code) {
+    s.activeLang = code;
+    save();
+  }
+  return pack;
+}
+
+export const activePack = () => pack;
+export const allWords = () => pack?.words || [];
 export const wordById = (id) => byId?.get(id);
+export const packStrings = () => pack?.strings || {};
+
+// diacritic display (e.g. Latin macrons), toggled in settings
+const stripCombining = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '');
+export function display(s) {
+  const st = getState();
+  if (st.showMarks || !pack?.marks) return s;
+  return stripCombining(s);
+}
 
 // date helpers (local time)
 const pad = (n) => String(n).padStart(2, '0');
@@ -25,99 +65,141 @@ export function dayStr(d = new Date()) {
 }
 export function addDays(day, n) {
   const [y, m, dd] = day.split('-').map(Number);
-  const d = new Date(y, m - 1, dd + n);
-  return dayStr(d);
+  return dayStr(new Date(y, m - 1, dd + n));
 }
 export function dayDiff(a, b) {
-  // b - a in days
   return Math.round((new Date(b) - new Date(a)) / 86400000);
 }
 
 // state
-function defaults() {
+function langDefaults() {
   return {
-    unlocked: 0,
     dict: {}, // id -> { addedAt, box, due, correct, wrong }
+    unlocked: 0,
     goal: 3,
     stats: { streak: 0, lastActive: null, byDay: {} },
   };
 }
 
+function defaults() {
+  return { activeLang: DEFAULT_LANG, accent: 'lilac', showMarks: true, langs: {} };
+}
+
 let state = null;
+
+function migrateLegacy() {
+  try {
+    const old = JSON.parse(localStorage.getItem(LEGACY_KEY) || 'null');
+    if (!old || !old.dict) return null;
+    const s = defaults();
+    s.langs[DEFAULT_LANG] = {
+      dict: old.dict || {},
+      unlocked: old.unlocked || 0,
+      goal: old.goal || 3,
+      stats: old.stats || langDefaults().stats,
+    };
+    localStorage.removeItem(LEGACY_KEY);
+    return s;
+  } catch {
+    return null;
+  }
+}
 
 export function getState() {
   if (!state) {
     try {
-      state = { ...defaults(), ...JSON.parse(localStorage.getItem(KEY) || '{}') };
+      const raw = JSON.parse(localStorage.getItem(KEY) || 'null');
+      state = raw ? { ...defaults(), ...raw } : migrateLegacy() || defaults();
     } catch {
       state = defaults();
     }
+    if (!state.langs) state.langs = {};
+    save();
   }
   return state;
+}
+
+export function langState(code = getState().activeLang) {
+  const s = getState();
+  if (!s.langs[code]) {
+    s.langs[code] = langDefaults();
+    save();
+  }
+  return s.langs[code];
 }
 
 export function save() {
   localStorage.setItem(KEY, JSON.stringify(state));
 }
 
+export function setAccent(name) {
+  getState().accent = name;
+  save();
+}
+export function setShowMarks(v) {
+  getState().showMarks = !!v;
+  save();
+}
+export function setGoal(n) {
+  langState().goal = n;
+  save();
+}
+
 function touchActivity() {
-  const s = getState();
+  const ls = langState();
   const today = dayStr();
-  if (s.stats.lastActive !== today) {
-    s.stats.streak =
-      s.stats.lastActive && dayDiff(s.stats.lastActive, today) === 1 ? s.stats.streak + 1 : 1;
-    s.stats.lastActive = today;
+  if (ls.stats.lastActive !== today) {
+    ls.stats.streak =
+      ls.stats.lastActive && dayDiff(ls.stats.lastActive, today) === 1 ? ls.stats.streak + 1 : 1;
+    ls.stats.lastActive = today;
   }
-  if (!s.stats.byDay[today]) s.stats.byDay[today] = { new: 0, reviews: 0 };
-  return s.stats.byDay[today];
+  if (!ls.stats.byDay[today]) ls.stats.byDay[today] = { new: 0, reviews: 0 };
+  return ls.stats.byDay[today];
 }
 
 export function todayCounts() {
-  const s = getState();
-  return s.stats.byDay[dayStr()] || { new: 0, reviews: 0 };
+  return langState().stats.byDay[dayStr()] || { new: 0, reviews: 0 };
 }
 
-// dictionary
+// dictionary (always the active language)
 export function addWord(id) {
-  const s = getState();
-  if (s.dict[id]) return false;
-  s.dict[id] = { addedAt: dayStr(), box: 0, due: dayStr(), correct: 0, wrong: 0 };
+  const ls = langState();
+  if (ls.dict[id]) return false;
+  ls.dict[id] = { addedAt: dayStr(), box: 0, due: dayStr(), correct: 0, wrong: 0 };
   touchActivity().new += 1;
-  const idx = words ? words.findIndex((w) => w.id === id) : -1;
-  if (idx >= 0 && idx + 1 > s.unlocked) s.unlocked = idx + 1;
+  const idx = pack ? pack.words.findIndex((w) => w.id === id) : -1;
+  if (idx >= 0 && idx + 1 > ls.unlocked) ls.unlocked = idx + 1;
   save();
   return true;
 }
 
 export function nextLockedWord() {
-  const s = getState();
-  if (!words) return null;
-  // first word (in canonical order) not yet in the dictionary
-  for (let i = 0; i < words.length; i++) {
-    if (!s.dict[words[i].id]) return words[i];
+  const ls = langState();
+  if (!pack) return null;
+  for (const w of pack.words) {
+    if (!ls.dict[w.id]) return w;
   }
   return null;
 }
 
-export function ensureUnlocked(count) {
-  // Server has delivered `count` words via push; make sure they're all in the library.
-  const s = getState();
+// Server has delivered `count` words for language `code`; make sure they're in that library.
+export function ensureUnlocked(code, packForCode, count) {
+  const ls = langState(code);
   let added = 0;
-  for (let i = 0; i < Math.min(count, words?.length || 0); i++) {
-    const id = words[i].id;
-    if (!s.dict[id]) {
-      s.dict[id] = { addedAt: dayStr(), box: 0, due: dayStr(), correct: 0, wrong: 0 };
+  for (let i = 0; i < Math.min(count, packForCode.words.length); i++) {
+    const id = packForCode.words[i].id;
+    if (!ls.dict[id]) {
+      ls.dict[id] = { addedAt: dayStr(), box: 0, due: dayStr(), correct: 0, wrong: 0 };
       added++;
     }
   }
-  if (count > s.unlocked) s.unlocked = count;
+  if (count > ls.unlocked) ls.unlocked = count;
   if (added) save();
   return added;
 }
 
 export function removeWord(id) {
-  const s = getState();
-  delete s.dict[id];
+  delete langState().dict[id];
   save();
 }
 
@@ -127,8 +209,7 @@ export function statusOf(entry) {
 }
 
 export function dictEntries() {
-  const s = getState();
-  return Object.entries(s.dict)
+  return Object.entries(langState().dict)
     .map(([id, e]) => ({ id, word: wordById(id), entry: e }))
     .filter((x) => x.word);
 }
@@ -149,10 +230,13 @@ export function counts() {
   };
 }
 
+export function wordCountFor(code) {
+  return Object.keys(getState().langs[code]?.dict || {}).length;
+}
+
 // reviews (SRS)
 export function recordReview(id, ok) {
-  const s = getState();
-  const e = s.dict[id];
+  const e = langState().dict[id];
   if (!e) return;
   if (ok) {
     e.box = Math.min(e.box + 1, INTERVALS.length - 1);
@@ -167,31 +251,30 @@ export function recordReview(id, ok) {
 }
 
 export function resetProgress(id) {
-  const s = getState();
-  const e = s.dict[id];
+  const e = langState().dict[id];
   if (!e) return;
   Object.assign(e, { box: 0, due: dayStr(), correct: 0, wrong: 0 });
   save();
 }
 
 export function setMastered(id) {
-  const s = getState();
-  const e = s.dict[id];
+  const e = langState().dict[id];
   if (!e) return;
   e.box = MASTERED_BOX;
   e.due = addDays(dayStr(), INTERVALS[MASTERED_BOX]);
   save();
 }
 
-export function setGoal(n) {
-  getState().goal = n;
-  save();
-}
-
-// export / import
-export function exportData() {
+// export / import, per language
+export function exportData(code = getState().activeLang) {
   return JSON.stringify(
-    { app: 'vernacular', version: 1, exportedAt: new Date().toISOString(), state: getState() },
+    {
+      app: 'vernacular',
+      version: 2,
+      lang: code,
+      exportedAt: new Date().toISOString(),
+      data: langState(code),
+    },
     null,
     2
   );
@@ -199,12 +282,28 @@ export function exportData() {
 
 export function importData(json) {
   const parsed = JSON.parse(json);
-  if (parsed?.app !== 'vernacular' || !parsed.state) throw new Error('Not a Vernacular backup file.');
-  state = { ...defaults(), ...parsed.state };
-  save();
+  if (parsed?.app !== 'vernacular') throw new Error('Not a Vernacular backup file.');
+  const s = getState();
+  if (parsed.version === 2 && parsed.lang && parsed.data) {
+    s.langs[parsed.lang] = { ...langDefaults(), ...parsed.data };
+    save();
+    return parsed.lang;
+  }
+  if (parsed.state?.dict) {
+    // legacy v1 backup: Latin
+    s.langs[DEFAULT_LANG] = {
+      dict: parsed.state.dict,
+      unlocked: parsed.state.unlocked || 0,
+      goal: parsed.state.goal || 3,
+      stats: parsed.state.stats || langDefaults().stats,
+    };
+    save();
+    return DEFAULT_LANG;
+  }
+  throw new Error('Unrecognized backup format.');
 }
 
-export function resetAll() {
-  state = defaults();
+export function resetLang(code = getState().activeLang) {
+  getState().langs[code] = langDefaults();
   save();
 }

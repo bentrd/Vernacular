@@ -1,4 +1,4 @@
-const VERSION = 'v1.0.1';
+const VERSION = 'v2.0.0';
 const CACHE = `vernacular-${VERSION}`;
 const SHELL = [
   '/',
@@ -8,7 +8,9 @@ const SHELL = [
   '/js/store.js',
   '/js/push.js',
   '/js/config.js',
-  '/data/words.json',
+  '/js/icons.js',
+  '/data/packs/index.json',
+  '/data/packs/la.json',
   '/manifest.webmanifest',
   '/icons/icon-192.png',
   '/icons/icon-512.png',

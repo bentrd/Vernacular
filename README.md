@@ -1,35 +1,41 @@
 # Vernacular
 
-**Learn Latin, one word at a time.**
+**Learn a language, one word at a time.**
 
-A minimal, installable web app (PWA) that broadens your Latin vocabulary with
-push notifications throughout the day, plus flashcards, quizzes, and a
-spaced-repetition review system. Designed in the spirit of Apple and OpenAI:
-quiet, warm, typographic.
+A minimal, installable web app (PWA) that grows your vocabulary with push
+notifications throughout the day, plus flashcards, quizzes, and a
+spaced-repetition review system. Ships with seven dictionary packs: Latin,
+Spanish, English, French, Italian, Russian, and Mandarin Chinese. Designed in
+the spirit of Apple and OpenAI: quiet, warm, typographic.
 
 ## Features
 
-- 📲 **Installable on iPhone**: add to Home Screen from Safari; it looks and feels native.
-- 🔔 **Push notifications**: three new words a day and one evening review prompt (iOS 16.4+, once installed).
-- 📖 **Personal library**: every word you collect, searchable, with grammar info and example sentences.
-- 🧠 **Spaced repetition**: Leitner boxes decide when each word is due for review.
-- 🃏 **Practice modes**: flashcards, multiple choice (Latin ↔ English), and type-the-Latin.
-- 🔥 **Streaks & daily goals**: gentle accountability.
-- 💾 **Local-first**: everything lives in `localStorage`; export/import your library as JSON anytime. No accounts, no database.
+- **Seven language packs**: frequency-ordered core vocabulary (CEFR-style A1 to B1), each word with grammar notes, English and French meanings, an example sentence, and romanization where relevant (pinyin, transliteration).
+- **Per-language everything**: library, streak, daily goal, notifications, and backups are tracked separately for each language. Switch languages from the Today screen.
+- **Installable on iPhone**: add to Home Screen from Safari; it looks and feels native.
+- **Push notifications**: three new words a day and one evening review prompt, per enabled language (iOS 16.4+, once installed).
+- **Spaced repetition**: Leitner boxes decide when each word is due for review.
+- **Practice modes**: flashcards, multiple choice (both directions), and type-the-word (accent- and tone-mark insensitive; pinyin and transliteration accepted).
+- **Localized flavor**: greetings, section titles, and verdicts follow the language you're learning.
+- **Your taste**: six accent colors (lilac by default), optional macrons for Latin, light and dark mode.
+- **Local-first**: everything lives in `localStorage`; export/import per-language JSON backups. No accounts, no database.
 
 ## Architecture
 
 ```
-public/          static PWA (vanilla JS, no build step)
-api/subscribe.js manage push subscriptions (stored in Vercel Blob)
-api/cron.js      sends the pushes; called on a schedule
+public/                 static PWA (vanilla JS, no build step)
+public/data/packs/      dictionary packs (index.json + one file per language)
+api/subscribe.js        per-language push subscriptions (stored in Vercel Blob)
+api/cron.js             sends the pushes; called on a schedule
 .github/workflows/notify.yml   GitHub Actions cron that hits /api/cron
 ```
 
-- Hosted on **Vercel** (static files + two serverless functions).
-- Push subscriptions are the only server-side state, kept in a single JSON file on **Vercel Blob**.
-- **GitHub Actions** provides the schedule (Vercel Hobby crons only run once daily).
-- The word list (~280 curated words, frequency-ordered with macrons, principal parts, and example sentences) ships as `public/data/words.json`.
+## Pack format
+
+Each pack is a single JSON file: `{ code, name, native, marks, strings, words }`.
+`strings` holds the localized UI flavor (greeting, verdicts, notification
+titles). Each word: `{ id, hw, g, pos, en, fr, ex, exEn, exFr, rom? }`.
+Adding a language = adding one pack file and re-running the index build.
 
 ## Configuration
 
@@ -44,7 +50,7 @@ Vercel environment variables:
 
 GitHub repo settings:
 
-- **Variable** `APP_URL`: the production URL (e.g. `https://vernacular.vercel.app`)
+- **Variable** `APP_URL`: the production URL
 - **Secret** `CRON_SECRET`: same value as on Vercel
 
 Notification times are plain cron lines in
@@ -53,9 +59,5 @@ Notification times are plain cron lines in
 ## iPhone setup
 
 1. Open the app in Safari.
-2. Share → **Add to Home Screen**.
-3. Open it from the Home Screen, go to **Settings → Daily word notifications**.
-
----
-
-*Fēcit cum amōre. Omnia verba tua sunt.*
+2. Share, then **Add to Home Screen**.
+3. Open it from the Home Screen, go to **Settings**, and enable notifications for the languages you want.

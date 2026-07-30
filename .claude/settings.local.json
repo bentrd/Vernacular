@@ -8,7 +8,9 @@
       "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('public/data/words.json'\\)\\)\")",
       "Bash(git add *)",
       "Bash(git commit -q -m 'Fix iOS tab bar overflow; remove all em dashes from copy *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(curl -s https://vernacular-five.vercel.app/)",
+      "Bash(curl -s https://vernacular-five.vercel.app/data/words.json)"
     ]
   }
 }
