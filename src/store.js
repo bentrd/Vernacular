@@ -13,9 +13,34 @@ export const DEFAULT_LANG = 'la';
 
 // packs
 const packCache = new Map();
+const packInFlight = new Map();
 let pack = null; // active pack {code, name, native, marks, strings, words}
 let byId = null;
 let index = null; // [{code, name, native, count, marks}]
+
+// Subscription layer, so React can render off this module via useSyncExternalStore.
+const listeners = new Set();
+let revision = 0;
+
+export function subscribe(fn) {
+  listeners.add(fn);
+  return () => listeners.delete(fn);
+}
+export function getRevision() {
+  return revision;
+}
+let emitScheduled = false;
+// Deferred + batched: several save() calls in one turn wake subscribers once,
+// and a save() that happens during a render never re-enters React mid-render.
+function emit() {
+  revision += 1;
+  if (emitScheduled) return;
+  emitScheduled = true;
+  queueMicrotask(() => {
+    emitScheduled = false;
+    for (const fn of listeners) fn();
+  });
+}
 
 export async function loadIndex() {
   if (index) return index;
@@ -24,23 +49,37 @@ export async function loadIndex() {
   return index;
 }
 
+export function loadedPackCodes() {
+  return new Set(packCache.keys());
+}
+
 export async function loadPack(code) {
   if (packCache.has(code)) return packCache.get(code);
-  const res = await fetch(`/data/packs/${code}.json`);
-  if (!res.ok) throw new Error(`pack ${code} not found`);
-  const p = await res.json();
-  p.byId = new Map(p.words.map((w) => [w.id, w]));
-  packCache.set(code, p);
-  return p;
+  // Packs are 1-4 MB. Share one request per code so a second tap on the same
+  // language doesn't kick off a second multi-megabyte download.
+  if (packInFlight.has(code)) return packInFlight.get(code);
+  const promise = (async () => {
+    const res = await fetch(`/data/packs/${code}.json`);
+    if (!res.ok) throw new Error(`pack ${code} not found`);
+    const p = await res.json();
+    p.byId = new Map(p.words.map((w) => [w.id, w]));
+    packCache.set(code, p);
+    return p;
+  })().finally(() => packInFlight.delete(code));
+  packInFlight.set(code, promise);
+  return promise;
 }
 
 export async function activatePack(code) {
-  pack = await loadPack(code);
-  byId = pack.byId;
+  const loaded = await loadPack(code);
+  pack = loaded;
+  byId = loaded.byId;
   const s = getState();
   if (s.activeLang !== code) {
     s.activeLang = code;
     save();
+  } else {
+    emit();
   }
   return pack;
 }
@@ -144,6 +183,7 @@ export function langState(code = getState().activeLang) {
 
 export function save() {
   localStorage.setItem(KEY, JSON.stringify(state));
+  emit();
 }
 
 export function setAccent(name) {
