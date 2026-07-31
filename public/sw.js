@@ -1,14 +1,11 @@
-const VERSION = 'v2.1.0';
+const VERSION = 'v2.2.0';
 const CACHE = `vernacular-${VERSION}`;
+// Only stable URLs go here. The app bundle ships as content-hashed files under
+// /assets/, which the stale-while-revalidate handler below picks up on first
+// load; listing them by name would break the install on every build.
 const SHELL = [
   '/',
   '/index.html',
-  '/css/main.css',
-  '/js/app.js',
-  '/js/store.js',
-  '/js/push.js',
-  '/js/config.js',
-  '/js/icons.js',
   '/data/packs/index.json',
   '/data/packs/la.json',
   '/manifest.webmanifest',

@@ -24,11 +24,37 @@ the spirit of Apple and OpenAI: quiet, warm, typographic.
 ## Architecture
 
 ```
-public/                 static PWA (vanilla JS, no build step)
+index.html              Vite entry
+src/                    React app; UI is built on Base UI primitives
+src/ui/                 shared components (Sheet, Toggle, Stepper, chips, toasts…)
+src/screens/            Today, Library, Practice, Settings, Session
+src/sheets/             the bottom sheets (languages, word, install, confirm)
+src/store.js            all app state; localStorage-backed, framework-agnostic
+public/                 static assets copied to dist/ verbatim
 public/data/packs/      dictionary packs (index.json + one file per language)
+public/sw.js            service worker (offline shell, push handling)
 api/subscribe.js        per-language push subscriptions (stored in Vercel Blob)
 api/cron.js             sends the pushes; called on a schedule
 .github/workflows/notify.yml   GitHub Actions cron that hits /api/cron
+```
+
+### UI components
+
+The interface is built on [Base UI](https://base-ui.com) — Dialog/Drawer, Toast,
+Switch, NumberField, Progress, Tabs, ToggleGroup, RadioGroup, and Field. Base UI
+supplies behavior and accessibility (focus trapping, dismissal, roving focus,
+ARIA); all styling lives in `src/main.css` and the design tokens are unchanged.
+
+The bottom sheets use `Drawer`, which brings swipe-to-dismiss, backdrop and
+Escape dismissal, background scroll locking, and proper exit animations.
+
+## Development
+
+```sh
+npm install
+npm run dev      # vite dev server
+npm run build    # -> dist/
+npm run preview  # serve the production build
 ```
 
 ## Dictionary data
