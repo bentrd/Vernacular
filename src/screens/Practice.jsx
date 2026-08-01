@@ -1,7 +1,14 @@
 import * as db from '../store.js';
 import { useStore } from '../useStore.js';
 import { S } from '../lang.js';
-import { CardsIcon, ChevronIcon, KeyboardIcon, ListIcon, SparklesIcon } from '../icons.jsx';
+import {
+  CardsIcon,
+  ChevronIcon,
+  KeyboardIcon,
+  ListIcon,
+  SparklesIcon,
+  TrophyIcon,
+} from '../icons.jsx';
 import { toast } from '../ui/toast.js';
 
 const MODES = [
@@ -10,10 +17,12 @@ const MODES = [
   { mode: 'type', Icon: KeyboardIcon, title: 'Type the word', sub: 'The hardest: spell it out' },
 ];
 
-export function Practice({ onStart }) {
+export function Practice({ onStart, onOpenCheckIn }) {
   useStore();
   const c = db.counts();
   const enough = c.total >= 4;
+  const last = db.lastCheckIn();
+  const since = last ? db.dayDiff(last.day, db.dayStr()) : null;
 
   return (
     <>
@@ -67,6 +76,26 @@ export function Practice({ onStart }) {
           </span>
         </button>
       ))}
+
+      <div className="section-label">Yourself</div>
+      <button type="button" className="card tappable mode-card" onClick={onOpenCheckIn}>
+        <span className="m-icon">
+          <TrophyIcon />
+        </span>
+        <span className="m-text">
+          <span className="m-title">Check in</span>
+          <span className="m-sub">
+            {since == null
+              ? 'Rate your confidence, see the week behind you'
+              : since === 0
+                ? 'Done today. Open it again to change your answer'
+                : `Last one ${since} day${since === 1 ? '' : 's'} ago`}
+          </span>
+        </span>
+        <span className="m-chev">
+          <ChevronIcon />
+        </span>
+      </button>
 
       {!enough ? (
         <p className="subtitle spaced">Collect at least 4 words to start practicing.</p>

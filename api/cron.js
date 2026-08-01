@@ -1,18 +1,17 @@
-// Called on a schedule (GitHub Actions) to push new words / review prompts,
-// per subscriber and per enabled language.
-// GET /api/cron?mode=word|review; requires Authorization: Bearer CRON_SECRET.
-import { readFileSync, readdirSync } from 'node:fs';
-import { loadSubs, saveSubs, migrateSub } from '../lib/subs.mjs';
+// The reminder tick. GitHub Actions calls this every 15 minutes; it works out
+// which of each subscriber's reminders have come due in their own time zone and
+// sends those, and only those.
+//
+//   GET /api/cron                 evaluate every schedule (the normal tick)
+//   GET /api/cron?force=word      send one push of that type to everyone, now
+//   GET /api/cron?mode=word       accepted for the pre-schedule workflow
+//
+// Requires Authorization: Bearer CRON_SECRET (or ?key=).
+import { loadSubs, saveSubs, migrateSub, pruneSentAt } from '../lib/subs.mjs';
 import { sendPush } from '../lib/webpush.mjs';
-
-const packsDir = new URL('../public/data/packs/', import.meta.url);
-const packs = {};
-for (const f of readdirSync(packsDir)) {
-  if (f.endsWith('.json') && f !== 'index.json') {
-    const p = JSON.parse(readFileSync(new URL(f, packsDir), 'utf8'));
-    packs[p.code] = p;
-  }
-}
+import { getPack } from '../lib/packs.mjs';
+import { buildPayload } from '../lib/payload.mjs';
+import { EVERY_DAY, TYPES, dueReminders, normalizeReminder, zonedNow } from '../lib/reminders.mjs';
 
 function authorized(req) {
   const secret = process.env.CRON_SECRET;
@@ -21,59 +20,66 @@ function authorized(req) {
   return header === `Bearer ${secret}` || req.query.key === secret;
 }
 
+// A forced send behaves like a reminder that is due right now for everyone.
+function forcedReminder(type) {
+  return normalizeReminder({ id: `force-${type}`, type, time: '00:00', days: [...EVERY_DAY] });
+}
+
 export default async function handler(req, res) {
   if (!authorized(req)) return res.status(401).json({ error: 'unauthorized' });
 
-  const mode = req.query.mode === 'review' ? 'review' : 'word';
+  const forceType = req.query.force || req.query.mode || null;
+  const force = TYPES.includes(forceType) ? forceType : null;
+  const now = new Date();
+
   try {
     const subs = (await loadSubs()).map(migrateSub);
-    if (!subs.length) return res.json({ mode, sent: 0, subscribers: 0 });
+    if (!subs.length) return res.json({ sent: 0, subscribers: 0, force });
 
     let sent = 0;
+    let skipped = 0;
     const alive = [];
 
     outer: for (const sub of subs) {
-      for (const [code, ls] of Object.entries(sub.langs)) {
+      const clock = zonedNow(sub.tz, now);
+
+      for (const [code, ls] of Object.entries(sub.langs || {})) {
         if (ls.enabled === false) continue;
-        const pack = packs[code];
+        const pack = getPack(code);
         if (!pack) continue;
-        const words = pack.words;
-        const strings = pack.strings || {};
-        let payload = null;
+        if (!force && ls.pausedUntil && clock.day <= ls.pausedUntil) continue;
 
-        if (mode === 'word') {
-          const w = words[(ls.index || 0) % words.length];
-          payload = {
-            title: `${w.hw} · ${strings.newWord || 'new word'}`,
-            body: [w.g, [w.rom, w.en, w.fr].filter(Boolean).join(' · ')].filter(Boolean).join('\n'),
-            url: `/?lang=${code}&word=${w.id}`,
-            tag: `word-${code}-${w.id}`,
-          };
-        } else {
-          const delivered = Math.min(ls.index || 0, words.length);
-          if (delivered < 3) continue;
-          const w = words[Math.floor(Math.random() * delivered)];
-          const template = strings.whatMeans || 'What does “%s” mean?';
-          payload = {
-            title: template.replace('%s', w.hw),
-            body: 'Time for your daily review. Tap to test yourself.',
-            url: `/?lang=${code}&review=1`,
-            tag: `review-${code}`,
-          };
+        const due = force
+          ? [{ reminder: forcedReminder(force), key: null }]
+          : dueReminders(ls.reminders, sub.tz, now, ls.sentAt);
+
+        for (const { reminder, key } of due) {
+          const built = buildPayload({ pack, code, reminder, ls, today: clock.day });
+          if (!built) {
+            // Nothing worth saying (goal already met, streak already kept).
+            // Still mark the occurrence so it is not reconsidered next tick.
+            if (key) ls.sentAt[reminder.id] = key;
+            skipped++;
+            continue;
+          }
+
+          const result = await sendPush(sub.subscription, built.payload);
+          if (result === 'gone') continue outer; // drop dead subscriptions entirely
+          if (result === true) {
+            sent++;
+            if (built.advance) ls.index = (Number(ls.index) || 0) + built.advance;
+            if (key) ls.sentAt[reminder.id] = key;
+          }
         }
 
-        const result = await sendPush(sub.subscription, payload);
-        if (result === 'gone') continue outer; // drop dead subscriptions entirely
-        if (result === true) {
-          sent++;
-          if (mode === 'word') ls.index = (ls.index || 0) + 1;
-        }
+        pruneSentAt(ls);
       }
+
       alive.push(sub);
     }
 
     await saveSubs(alive);
-    return res.json({ mode, sent, subscribers: alive.length });
+    return res.json({ sent, skipped, subscribers: alive.length, force });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: 'internal error' });

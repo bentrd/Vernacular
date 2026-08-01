@@ -337,6 +337,78 @@ button.setting-row:active { background: var(--surface-2); }
 button.setting-row:disabled { opacity: .45; }
 .setting-row.danger-row .s-title { color: var(--red); }
 
+/* reminders */
+.back-link { display: flex; align-items: center; gap: 2px; color: var(--text-2); font-size: 15px; font-weight: 600; margin-bottom: 14px; padding: 4px 0; }
+.back-link .icon { width: 18px; height: 18px; }
+.icon.flip { transform: rotate(180deg); }
+
+.lang-chips { margin-top: 18px; }
+.lang-chips + .setting-group { margin-top: 14px; }
+.chip-dot { display: inline-block; width: 6px; height: 6px; border-radius: 99px; background: var(--green); margin-left: 7px; vertical-align: 1px; }
+.chip[data-pressed] .chip-dot { background: var(--bg); }
+
+.reminder-row .rm-time { flex: none; width: 78px; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+.reminder-row.is-off { opacity: .5; }
+.add-row .s-title { color: var(--accent); }
+.add-row .s-value .icon { color: var(--accent); }
+
+.pause-row { gap: 8px; flex-wrap: wrap; padding-left: 14px; padding-right: 14px; }
+.pause-row .btn { flex: none; }
+.pause-row .btn.small { padding: 9px 13px; }
+
+.days-row { padding-top: 12px; padding-bottom: 12px; }
+.chips.days { gap: 6px; margin-top: 0; width: 100%; justify-content: space-between; }
+.day-chip { width: 38px; height: 38px; padding: 0; border-radius: 99px; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+
+.time-input {
+  flex: none; background: var(--surface-2); border: none; border-radius: 10px;
+  padding: 7px 10px; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums;
+  min-width: 104px; text-align: center;
+}
+.time-input::-webkit-calendar-picker-indicator { display: none; }
+.time-input::-webkit-date-and-time-value { text-align: center; }
+
+/* Base UI RadioGroup · picking a reminder type */
+.pick-row { background: none; }
+.pick-row:active { background: var(--surface-2); }
+.pick-check { display: flex; color: var(--accent); flex: none; }
+.pick-check .icon { width: 20px; height: 20px; }
+
+.field { margin-top: 22px; }
+.field-label { display: block; font-size: 13px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--text-3); margin: 0 4px 10px; }
+.field-input {
+  width: 100%; background: var(--surface); border: none; border-radius: 14px;
+  padding: 15px 18px; font-size: 16px; outline: none; box-shadow: var(--shadow);
+}
+.field-input::placeholder { color: var(--text-3); }
+.field-hint { font-size: 13px; color: var(--text-2); margin: 8px 4px 0; line-height: 1.45; }
+
+.sheet-links { display: flex; justify-content: center; gap: 12px; margin-top: 10px; }
+.btn.ghost.danger-text { color: var(--red); }
+
+/* self-assessment */
+.checkin-scale { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+.rating-row {
+  display: flex; align-items: center; gap: 14px; width: 100%; text-align: left;
+  background: var(--surface); border-radius: 14px; padding: 14px 18px; box-shadow: var(--shadow);
+  transition: transform .1s ease;
+}
+.rating-row:active { transform: scale(.985); }
+.rating-row[data-checked] { background: var(--accent-soft); }
+.rating-row .r-face { flex: none; width: 34px; height: 34px; border-radius: 99px; background: var(--surface-2); display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--text-2); }
+.rating-row[data-checked] .r-face { background: var(--accent); color: #fff; }
+.rating-row .r-text { flex: 1; min-width: 0; }
+.rating-row .r-title { display: block; font-weight: 600; font-size: 16px; }
+.rating-row .r-sub { display: block; font-size: 13px; color: var(--text-2); margin-top: 1px; }
+
+.trend { margin-top: 16px; }
+.trend-svg { display: block; width: 100%; height: 56px; overflow: visible; }
+.trend-line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.trend-dot { fill: var(--accent); }
+.trend-caption { font-size: 13px; color: var(--text-2); margin-top: 8px; }
+
+.checkin-note { margin-top: 14px; font-size: 14px; color: var(--text-2); line-height: 1.5; font-style: italic; }
+
 /* Base UI Switch */
 .toggle {
   width: 51px; height: 31px; border-radius: 99px; flex: none; padding: 0;

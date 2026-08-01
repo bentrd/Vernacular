@@ -1,8 +1,16 @@
 // Local state, one namespace per language. Packs are fetched on demand.
 // localStorage 'vernacular:v2' = {
 //   activeLang, accent, showMarks,
-//   langs: { <code>: { dict, unlocked, goal, stats } }
+//   langs: { <code>: { dict, unlocked, goal, stats, reminders, pausedUntil, checkins } }
 // }
+import {
+  defaultReminders,
+  normalizeReminder,
+  normalizeReminders,
+  sortReminders,
+  newId,
+} from '../lib/reminders.mjs';
+
 const KEY = 'vernacular:v2';
 const LEGACY_KEY = 'vernacular:v1';
 
@@ -131,7 +139,18 @@ function langDefaults() {
     unlocked: 0,
     goal: 3,
     stats: { streak: 0, lastActive: null, byDay: {} },
+    reminders: defaultReminders(),
+    pausedUntil: null,
+    checkins: [], // [{ day, rating, note, snap }]
   };
+}
+
+// Language records written before reminders existed are filled in on read.
+function fillLang(ls) {
+  if (!Array.isArray(ls.reminders)) ls.reminders = defaultReminders();
+  if (!Array.isArray(ls.checkins)) ls.checkins = [];
+  if (ls.pausedUntil === undefined) ls.pausedUntil = null;
+  return ls;
 }
 
 function defaults() {
@@ -178,7 +197,20 @@ export function langState(code = getState().activeLang) {
     s.langs[code] = langDefaults();
     save();
   }
-  return s.langs[code];
+  return fillLang(s.langs[code]);
+}
+
+// Every language the device knows about, active or not.
+export function knownLangs() {
+  return Object.keys(getState().langs);
+}
+
+export function timeZone() {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  } catch {
+    return 'UTC';
+  }
 }
 
 export function save() {
@@ -199,8 +231,145 @@ export function setGoal(n) {
   save();
 }
 
-function touchActivity() {
-  const ls = langState();
+// reminders, per language
+export function reminders(code = getState().activeLang) {
+  return sortReminders(normalizeReminders(langState(code).reminders));
+}
+
+export function addReminder(code, draft) {
+  const ls = langState(code);
+  ls.reminders = [...normalizeReminders(ls.reminders), normalizeReminder({ id: newId(), ...draft })];
+  save();
+  return ls.reminders[ls.reminders.length - 1];
+}
+
+export function updateReminder(code, id, patch) {
+  const ls = langState(code);
+  ls.reminders = normalizeReminders(ls.reminders).map((r) =>
+    r.id === id ? normalizeReminder({ ...r, ...patch, id }) : r
+  );
+  save();
+}
+
+export function removeReminder(code, id) {
+  const ls = langState(code);
+  ls.reminders = normalizeReminders(ls.reminders).filter((r) => r.id !== id);
+  save();
+}
+
+export function setReminders(code, list) {
+  langState(code).reminders = normalizeReminders(list);
+  save();
+}
+
+// Pause everything for a language for a few days, without losing the schedule.
+export function pauseReminders(code, days) {
+  const ls = langState(code);
+  ls.pausedUntil = days > 0 ? addDays(dayStr(), days - 1) : null;
+  save();
+}
+
+export function pausedUntil(code = getState().activeLang) {
+  const until = langState(code).pausedUntil;
+  return until && until >= dayStr() ? until : null;
+}
+
+// What the server needs to decide whether a conditional reminder has anything
+// to say: where today stands, and how far the library has come.
+export function statsPayload(code) {
+  const ls = langState(code);
+  const today = dayStr();
+  const t = ls.stats.byDay[today] || { new: 0, reviews: 0 };
+  const entries = Object.values(ls.dict);
+  return {
+    day: today,
+    lastActive: ls.stats.lastActive,
+    streak: ls.stats.streak || 0,
+    newToday: t.new || 0,
+    goal: ls.goal || 3,
+    due: entries.filter((e) => e.due <= today).length,
+    unlocked: ls.unlocked || 0,
+    learned: entries.length,
+  };
+}
+
+// self-assessment
+export const RATINGS = [
+  { value: 1, label: 'Lost', blurb: 'None of it is sticking' },
+  { value: 2, label: 'Shaky', blurb: 'I recognize more than I recall' },
+  { value: 3, label: 'Steady', blurb: 'Slow, but it is going in' },
+  { value: 4, label: 'Solid', blurb: 'Most words come back to me' },
+  { value: 5, label: 'Sharp', blurb: 'I could use these in a sentence' },
+];
+
+const MAX_CHECKINS = 24;
+
+// A week at a glance, computed without the pack so it works for any language.
+export function weekSnapshot(code = getState().activeLang) {
+  const ls = langState(code);
+  const today = dayStr();
+  let fresh = 0;
+  let reviews = 0;
+  let activeDays = 0;
+  for (let i = 0; i < 7; i++) {
+    const rec = ls.stats.byDay[addDays(today, -i)];
+    if (!rec) continue;
+    fresh += rec.new || 0;
+    reviews += rec.reviews || 0;
+    if ((rec.new || 0) + (rec.reviews || 0) > 0) activeDays++;
+  }
+  const entries = Object.values(ls.dict);
+  const correct = entries.reduce((n, e) => n + (e.correct || 0), 0);
+  const wrong = entries.reduce((n, e) => n + (e.wrong || 0), 0);
+  return {
+    new: fresh,
+    reviews,
+    activeDays,
+    total: entries.length,
+    mastered: entries.filter((e) => (e.box || 0) >= MASTERED_BOX).length,
+    due: entries.filter((e) => e.due <= today).length,
+    streak: ls.stats.streak || 0,
+    accuracy: correct + wrong ? Math.round((correct / (correct + wrong)) * 100) : null,
+  };
+}
+
+export function checkIns(code = getState().activeLang) {
+  return langState(code).checkins;
+}
+
+export function lastCheckIn(code = getState().activeLang) {
+  const list = checkIns(code);
+  return list.length ? list[list.length - 1] : null;
+}
+
+export function recordCheckIn(code, rating, note = '') {
+  const ls = langState(code);
+  const day = dayStr();
+  const entry = {
+    day,
+    rating,
+    note: String(note || '').trim().slice(0, 240),
+    snap: weekSnapshot(code),
+  };
+  // One check-in per day: a second one that day replaces the first.
+  const rest = ls.checkins.filter((c) => c.day !== day);
+  ls.checkins = [...rest, entry].slice(-MAX_CHECKINS);
+  // Sitting down to assess yourself counts as showing up.
+  touchActivity(code);
+  save();
+  return entry;
+}
+
+// Only nag when the language actually asked for check-ins.
+export function checkInDue(code = getState().activeLang) {
+  const wants = reminders(code).some((r) => r.type === 'assess' && r.enabled);
+  if (!wants) return false;
+  const last = lastCheckIn(code);
+  return !last || dayDiff(last.day, dayStr()) >= 6;
+}
+
+function touchActivity(code = getState().activeLang) {
+  const ls = langState(code);
   const today = dayStr();
   if (ls.stats.lastActive !== today) {
     ls.stats.streak =

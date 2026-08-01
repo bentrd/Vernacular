@@ -1,42 +1,37 @@
-# Sends push notifications by calling the Vercel API on a schedule.
-# Times are UTC. Current schedule (≈ Paris time, CEST = UTC+2):
-#   07:30 UTC → 09:30  new word
-#   11:30 UTC → 13:30  new word
-#   15:30 UTC → 17:30  new word
-#   19:00 UTC → 21:00  review quiz prompt
-# GitHub cron can drift by a few minutes; that's normal.
-name: Send word notifications
+# Ticks the reminder engine. Every subscriber picks their own times in the app;
+# this workflow just pokes /api/cron often enough that those times can be hit.
+# The endpoint works out, per subscriber and per language, which reminders came
+# due since the last tick (in their own time zone) and sends only those.
+#
+# GitHub's scheduler drifts by a few minutes under load, and occasionally skips
+# a tick entirely. /api/cron tolerates both: an occurrence stays deliverable for
+# 55 minutes, and is delivered at most once.
+name: Reminder tick
 
 on:
   schedule:
-    - cron: "30 7 * * *"
-    - cron: "30 11 * * *"
-    - cron: "30 15 * * *"
-    - cron: "0 19 * * *"
+    - cron: "*/15 * * * *"
   workflow_dispatch:
     inputs:
-      mode:
-        description: "Notification type"
+      force:
+        description: "Send this type to everyone now, ignoring schedules"
         type: choice
-        options: [word, review]
-        default: word
+        options: ["", word, review, assess, streak, goal]
+        default: ""
 
 jobs:
-  notify:
+  tick:
     runs-on: ubuntu-latest
     steps:
-      - name: Send notification
+      - name: Tick
         env:
           APP_URL: ${{ vars.APP_URL }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          FORCE: ${{ inputs.force }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            MODE="${{ inputs.mode }}"
-          elif [ "${{ github.event.schedule }}" = "0 19 * * *" ]; then
-            MODE="review"
-          else
-            MODE="word"
+          URL="$APP_URL/api/cron"
+          if [ -n "$FORCE" ]; then
+            URL="$URL?force=$FORCE"
+            echo "Forcing $FORCE"
           fi
-          echo "Sending mode=$MODE"
-          curl -fsS "$APP_URL/api/cron?mode=$MODE" \
-            -H "Authorization: Bearer $CRON_SECRET"
+          curl -fsS "$URL" -H "Authorization: Bearer $CRON_SECRET"
