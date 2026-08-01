@@ -3,8 +3,66 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no, interactive-widget=resizes-content" />
-  <title>Verbum</title>
-  <meta name="description" content="Learn a language, one word at a time." />
+  <title>Verbum: Learn a Language, One Word at a Time</title>
+  <meta name="description" content="A free language app that grows your Spanish, French, Italian, Latin, Russian, or Mandarin vocabulary with daily reminders, flashcards, and spaced repetition." />
+  <link rel="canonical" href="https://verbum.study/" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Verbum" />
+  <meta property="og:url" content="https://verbum.study/" />
+  <meta property="og:title" content="Verbum: Learn a Language, One Word at a Time" />
+  <meta property="og:description" content="A free language app that grows your Spanish, French, Italian, Latin, Russian, or Mandarin vocabulary with daily reminders, flashcards, and spaced repetition." />
+  <meta property="og:image" content="https://verbum.study/icons/og.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="Verbum. Learn a language, one word at a time." />
+  <meta property="og:locale" content="en_US" />
+  <meta property="og:locale:alternate" content="fr_FR" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Verbum: Learn a Language, One Word at a Time" />
+  <meta name="twitter:description" content="A free language app that grows your Spanish, French, Italian, Latin, Russian, or Mandarin vocabulary with daily reminders, flashcards, and spaced repetition." />
+  <meta name="twitter:image" content="https://verbum.study/icons/og.png" />
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": "https://verbum.study/#website",
+        "url": "https://verbum.study/",
+        "name": "Verbum",
+        "description": "Learn a language, one word at a time.",
+        "inLanguage": ["en", "fr"]
+      },
+      {
+        "@type": "WebApplication",
+        "@id": "https://verbum.study/#app",
+        "name": "Verbum",
+        "url": "https://verbum.study/",
+        "description": "A free, installable web app that grows your vocabulary with daily push reminders, flashcards, quizzes, and a spaced-repetition review system. Seven full dictionaries with 207,000+ words: Spanish, French, Italian, Latin, Russian, English, and Mandarin Chinese.",
+        "applicationCategory": "EducationalApplication",
+        "applicationSubCategory": "Language learning",
+        "operatingSystem": "Any",
+        "browserRequirements": "Requires JavaScript",
+        "image": "https://verbum.study/icons/icon-512.png",
+        "inLanguage": ["en", "fr"],
+        "isAccessibleForFree": true,
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "featureList": [
+          "Seven full dictionaries: Spanish, English, French, Italian, Russian, Mandarin Chinese, and Latin",
+          "Daily push notifications on a schedule you design",
+          "Flashcards, multiple choice, and type-the-word practice",
+          "Spaced repetition with Leitner boxes",
+          "Works offline, installable on iPhone and Android",
+          "English and French meanings for every word"
+        ],
+        "teaches": ["Spanish", "French", "Italian", "Latin", "Russian", "English", "Mandarin Chinese"]
+      }
+    ]
+  }
+  </script>
 
   <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="icon" href="/icons/icon-192.png" />
@@ -19,6 +77,13 @@
 <body>
   <div class="statusbar-veil" aria-hidden="true"></div>
   <div id="root"></div>
+  <noscript>
+    <h1>Verbum</h1>
+    <p>Learn a language, one word at a time. A free, installable web app with seven full
+    dictionaries (Spanish, French, Italian, Latin, Russian, English, and Mandarin Chinese),
+    daily push reminders, flashcards, quizzes, and spaced repetition. Verbum needs
+    JavaScript to run; please enable it and reload.</p>
+  </noscript>
   <script type="module" src="/src/main.jsx"></script>
 </body>
 </html>
