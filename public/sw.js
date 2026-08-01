@@ -1,4 +1,4 @@
-const VERSION = 'v3.0.0';
+const VERSION = 'v3.0.1';
 const CACHE = `vernacular-${VERSION}`;
 // Only stable URLs go here. The app bundle ships as content-hashed files under
 // /assets/, which the stale-while-revalidate handler below picks up on first
@@ -34,6 +34,7 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   if (event.request.method !== 'GET' || url.origin !== location.origin) return;
   if (url.pathname.startsWith('/api/')) return; // network only
+  if (url.pathname.startsWith('/_vercel/')) return; // analytics et al., network only
 
   if (event.request.mode === 'navigate') {
     event.respondWith(

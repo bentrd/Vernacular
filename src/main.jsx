@@ -1,5 +1,6 @@
 import { StrictMode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import { Analytics } from '@vercel/analytics/react';
 import { Toast } from '@base-ui/react/toast';
 import * as db from './store.js';
 import { resolveSession, cacheAccount, cachedAccount } from './auth.js';
@@ -153,6 +154,7 @@ async function boot() {
   createRoot(document.getElementById('root')).render(
     <StrictMode>
       <Root initialPhase={phase} user={user} launch={launch} />
+      <Analytics />
     </StrictMode>
   );
 }
