@@ -4,7 +4,7 @@ export function Group({ children, className = '' }) {
 }
 
 // A row that does something. Always a real <button>, never a div with a
-// listener — that distinction is what makes it reliably tappable on iOS.
+// listener: that distinction is what makes it reliably tappable on iOS.
 export function ActionRow({ title, subtitle, value, onClick, disabled, className = '', children }) {
   return (
     <button

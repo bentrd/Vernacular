@@ -11,8 +11,11 @@ import { Stepper } from '../ui/Stepper.jsx';
 import { AccentPicker } from '../ui/AccentPicker.jsx';
 import { ConfirmSheet } from '../sheets/ConfirmSheet.jsx';
 import { Reminders } from './Reminders.jsx';
+import { Sheet } from '../ui/Sheet.jsx';
 import { toast } from '../ui/toast.js';
-import { ChevronIcon, DownloadIcon, UploadIcon } from '../icons.jsx';
+import { cachedAccount, cacheAccount, signOut, deleteAuthUser } from '../auth.js';
+import { apiFetch, syncNow, syncStatus, onSyncChange } from '../sync.js';
+import { ChevronIcon, DownloadIcon, UploadIcon, SpinnerIcon } from '../icons.jsx';
 
 export function Settings({ onOpenLanguages, onOpenInstall, onApplyAccent, onSwitchLang }) {
   useStore();
@@ -24,6 +27,68 @@ export function Settings({ onOpenLanguages, onOpenInstall, onApplyAccent, onSwit
   const [status, setStatus] = useState({ subscribed: false, langs: {} });
   const [confirmReset, setConfirmReset] = useState(false);
   const fileRef = useRef(null);
+
+  const [account, setAccount] = useState(() => cachedAccount() || {});
+  const [sync, setSync] = useState(() => syncStatus());
+  const [nameOpen, setNameOpen] = useState(false);
+  const [nameDraft, setNameDraft] = useState('');
+  const [nameBusy, setNameBusy] = useState(false);
+  const [confirmSignOut, setConfirmSignOut] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [accountBusy, setAccountBusy] = useState(false);
+
+  useEffect(() => onSyncChange(() => setSync(syncStatus())), []);
+
+  async function saveName() {
+    const name = nameDraft.trim();
+    if (!name) return;
+    setNameBusy(true);
+    try {
+      const res = await apiFetch('/api/profile', {
+        method: 'PUT',
+        body: JSON.stringify({ displayName: name }),
+      });
+      cacheAccount({ ...(cachedAccount() || {}), profile: res.profile });
+      setAccount(cachedAccount() || {});
+      setNameOpen(false);
+    } catch {
+      toast('Could not save your name');
+    } finally {
+      setNameBusy(false);
+    }
+  }
+
+  async function doSignOut() {
+    setAccountBusy(true);
+    try {
+      await syncNow(); // best effort: push the latest changes up first
+    } catch {
+      /* offline sign-out still allowed */
+    }
+    try {
+      await signOut();
+    } catch {
+      /* cookie may already be gone */
+    }
+    db.clearLocalState();
+    location.hash = '';
+    location.reload();
+  }
+
+  async function doDeleteAccount() {
+    setAccountBusy(true);
+    try {
+      await apiFetch('/api/account', { method: 'DELETE' });
+      await deleteAuthUser().catch(() => {}); // auth record; app data is already gone
+      await signOut().catch(() => {});
+      db.clearLocalState();
+      location.hash = '';
+      location.reload();
+    } catch {
+      toast('Could not delete your account, try again');
+      setAccountBusy(false);
+    }
+  }
 
   const supported = push.pushSupported();
   const denied = supported && Notification.permission === 'denied';
@@ -71,6 +136,42 @@ export function Settings({ onOpenLanguages, onOpenInstall, onApplyAccent, onSwit
     <>
       <div className="eyebrow">{S('settingsEyebrow')}</div>
       <h1 className="title">Settings</h1>
+
+      <div className="section-label">Account</div>
+      <Group>
+        <ActionRow
+          title={account.profile?.displayName || account.user?.name || 'Your account'}
+          subtitle={account.user?.email || ''}
+          value={
+            sync.pending ? (
+              <span className="sync-badge">
+                <SpinnerIcon /> Syncing
+              </span>
+            ) : sync.lastError ? (
+              <span className="sync-badge">Offline</span>
+            ) : (
+              <span className="sync-badge ok">Synced</span>
+            )
+          }
+          onClick={() => {
+            setNameDraft(account.profile?.displayName || account.user?.name || '');
+            setNameOpen(true);
+          }}
+        />
+        <ActionRow
+          title="Sign out"
+          subtitle="Your words stay saved to your account"
+          onClick={() => setConfirmSignOut(true)}
+          disabled={accountBusy}
+        />
+        <ActionRow
+          title="Delete account"
+          subtitle="Erases your account and all synced data, permanently"
+          className="danger-row"
+          onClick={() => setConfirmDelete(true)}
+          disabled={accountBusy}
+        />
+      </Group>
 
       <div className="section-label">Language</div>
       <Group>
@@ -177,6 +278,20 @@ export function Settings({ onOpenLanguages, onOpenInstall, onApplyAccent, onSwit
         }}
       />
 
+      <div className="section-label">Legal</div>
+      <Group>
+        <ActionRow
+          title="Terms of Service"
+          value={<ChevronIcon />}
+          onClick={() => (location.hash = '/terms')}
+        />
+        <ActionRow
+          title="Privacy Policy"
+          value={<ChevronIcon />}
+          onClick={() => (location.hash = '/privacy')}
+        />
+      </Group>
+
       <div className="section-label">About</div>
       <Group>
         <StaticRow title="Version" value={APP_VERSION} />
@@ -187,7 +302,7 @@ export function Settings({ onOpenLanguages, onOpenInstall, onApplyAccent, onSwit
         />
         <StaticRow
           title="Vernacular"
-          subtitle={`${S('madeWith')} · your data never leaves this device (except push subscriptions)`}
+          subtitle={`${S('madeWith')} · your words sync to your account and stay on this device for offline use`}
         />
       </Group>
 
@@ -195,7 +310,7 @@ export function Settings({ onOpenLanguages, onOpenInstall, onApplyAccent, onSwit
         open={confirmReset}
         onOpenChange={setConfirmReset}
         title={`Erase ${packName} data?`}
-        description={`Your ${packName} library, progress, and streak on this device will be gone. Other languages are untouched. Consider exporting first.`}
+        description={`Your ${packName} library, progress, and streak will be erased from your account and your devices. Other languages are untouched. Consider exporting first.`}
         confirmLabel="Erase"
         destructive
         onConfirm={() => {
@@ -203,6 +318,51 @@ export function Settings({ onOpenLanguages, onOpenInstall, onApplyAccent, onSwit
           toast(`${packName} data erased`);
         }}
       />
+
+      <ConfirmSheet
+        open={confirmSignOut}
+        onOpenChange={setConfirmSignOut}
+        title="Sign out?"
+        description="Your words are saved to your account and come back next time you sign in. This device's copy is cleared."
+        confirmLabel="Sign out"
+        onConfirm={doSignOut}
+      />
+
+      <ConfirmSheet
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title="Delete your account?"
+        description="Your account, library, progress, and notification subscriptions are permanently erased from our servers. There is no undo. Consider exporting your languages first."
+        confirmLabel="Delete forever"
+        destructive
+        onConfirm={doDeleteAccount}
+      />
+
+      <Sheet open={nameOpen} onOpenChange={setNameOpen} title="Your name">
+        <div className="setting-group" style={{ marginTop: 16 }}>
+          <div className="setting-row">
+            <input
+              className="auth-input bare"
+              type="text"
+              placeholder="What should we call you?"
+              maxLength={80}
+              value={nameDraft}
+              onChange={(e) => setNameDraft(e.target.value)}
+            />
+          </div>
+        </div>
+        <div className="btn-row">
+          <button
+            type="button"
+            className="btn accent full"
+            disabled={!nameDraft.trim() || nameBusy}
+            onClick={saveName}
+          >
+            {nameBusy ? <SpinnerIcon /> : null}
+            Save
+          </button>
+        </div>
+      </Sheet>
     </>
   );
 }

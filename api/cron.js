@@ -7,7 +7,7 @@
 //   GET /api/cron?mode=word       accepted for the pre-schedule workflow
 //
 // Requires Authorization: Bearer CRON_SECRET (or ?key=).
-import { loadSubs, saveSubs, migrateSub, pruneSentAt } from '../lib/subs.mjs';
+import { ensureLegacyImport, allSubs, saveSub, deleteSub, pruneSentAt } from '../lib/subs.mjs';
 import { sendPush } from '../lib/webpush.mjs';
 import { getPack } from '../lib/packs.mjs';
 import { buildPayload } from '../lib/payload.mjs';
@@ -33,15 +33,17 @@ export default async function handler(req, res) {
   const now = new Date();
 
   try {
-    const subs = (await loadSubs()).map(migrateSub);
+    await ensureLegacyImport();
+    const subs = await allSubs();
     if (!subs.length) return res.json({ sent: 0, subscribers: 0, force });
 
     let sent = 0;
     let skipped = 0;
-    const alive = [];
+    let subscribers = 0;
 
     outer: for (const sub of subs) {
       const clock = zonedNow(sub.tz, now);
+      const before = JSON.stringify({ langs: sub.langs, tz: sub.tz });
 
       for (const [code, ls] of Object.entries(sub.langs || {})) {
         if (ls.enabled === false) continue;
@@ -64,7 +66,10 @@ export default async function handler(req, res) {
           }
 
           const result = await sendPush(sub.subscription, built.payload);
-          if (result === 'gone') continue outer; // drop dead subscriptions entirely
+          if (result === 'gone') {
+            await deleteSub(sub.endpoint); // drop dead subscriptions entirely
+            continue outer;
+          }
           if (result === true) {
             sent++;
             if (built.advance) ls.index = (Number(ls.index) || 0) + built.advance;
@@ -75,11 +80,11 @@ export default async function handler(req, res) {
         pruneSentAt(ls);
       }
 
-      alive.push(sub);
+      if (JSON.stringify({ langs: sub.langs, tz: sub.tz }) !== before) await saveSub(sub);
+      subscribers++;
     }
 
-    await saveSubs(alive);
-    return res.json({ sent, skipped, subscribers: alive.length, force });
+    return res.json({ sent, skipped, subscribers, force });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: 'internal error' });

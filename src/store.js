@@ -1,8 +1,15 @@
 // Local state, one namespace per language. Packs are fetched on demand.
 // localStorage 'vernacular:v2' = {
-//   activeLang, accent, showMarks,
-//   langs: { <code>: { dict, unlocked, goal, stats, reminders, pausedUntil, checkins } }
+//   activeLang, accent, showMarks, prefsU,
+//   langs: { <code>: { dict, unlocked, goal, goalU, resetAt, removed, stats,
+//                      reminders, pausedUntil, checkins } }
 // }
+// The store stays the app's working copy (so the PWA works offline and every
+// interaction is instant); src/sync.js mirrors it into the account via
+// /api/sync. Mutations stamp `u` / `prefsU` / `goalU` (epoch ms) so devices
+// merge by last-write-wins, and removals leave tombstones in `removed`.
+// Reminder schedules and pauses stay device-local: they belong to this
+// device's push subscription, not to the account.
 import {
   defaultReminders,
   normalizeReminder,
@@ -85,6 +92,7 @@ export async function activatePack(code) {
   const s = getState();
   if (s.activeLang !== code) {
     s.activeLang = code;
+    s.prefsU = Date.now();
     save();
   } else {
     emit();
@@ -135,26 +143,33 @@ export function dayDiff(a, b) {
 // state
 function langDefaults() {
   return {
-    dict: {}, // id -> { addedAt, box, due, correct, wrong }
+    dict: {}, // id -> { addedAt, box, due, correct, wrong, u }
     unlocked: 0,
     goal: 3,
+    goalU: 0,
+    resetAt: 0,
+    removed: {}, // id -> removedAt ms (sync tombstones)
     stats: { streak: 0, lastActive: null, byDay: {} },
     reminders: defaultReminders(),
     pausedUntil: null,
-    checkins: [], // [{ day, rating, note, snap }]
+    checkins: [], // [{ day, rating, note, snap, u }]
   };
 }
 
-// Language records written before reminders existed are filled in on read.
+// Language records written before reminders or account sync existed are
+// filled in on read.
 function fillLang(ls) {
   if (!Array.isArray(ls.reminders)) ls.reminders = defaultReminders();
   if (!Array.isArray(ls.checkins)) ls.checkins = [];
   if (ls.pausedUntil === undefined) ls.pausedUntil = null;
+  if (typeof ls.goalU !== 'number') ls.goalU = 0;
+  if (typeof ls.resetAt !== 'number') ls.resetAt = 0;
+  if (!ls.removed) ls.removed = {};
   return ls;
 }
 
 function defaults() {
-  return { activeLang: DEFAULT_LANG, accent: 'lilac', showMarks: true, langs: {} };
+  return { activeLang: DEFAULT_LANG, accent: 'lilac', showMarks: true, prefsU: 0, langs: {} };
 }
 
 let state = null;
@@ -165,6 +180,7 @@ function migrateLegacy() {
     if (!old || !old.dict) return null;
     const s = defaults();
     s.langs[DEFAULT_LANG] = {
+      ...langDefaults(),
       dict: old.dict || {},
       unlocked: old.unlocked || 0,
       goal: old.goal || 3,
@@ -186,6 +202,7 @@ export function getState() {
       state = defaults();
     }
     if (!state.langs) state.langs = {};
+    if (typeof state.prefsU !== 'number') state.prefsU = 0;
     save();
   }
   return state;
@@ -219,19 +236,25 @@ export function save() {
 }
 
 export function setAccent(name) {
-  getState().accent = name;
+  const s = getState();
+  s.accent = name;
+  s.prefsU = Date.now();
   save();
 }
 export function setShowMarks(v) {
-  getState().showMarks = !!v;
+  const s = getState();
+  s.showMarks = !!v;
+  s.prefsU = Date.now();
   save();
 }
 export function setGoal(n) {
-  langState().goal = n;
+  const ls = langState();
+  ls.goal = n;
+  ls.goalU = Date.now();
   save();
 }
 
-// reminders, per language
+// reminders, per language (device-local; mirrored to the push subscription)
 export function reminders(code = getState().activeLang) {
   return sortReminders(normalizeReminders(langState(code).reminders));
 }
@@ -350,6 +373,7 @@ export function recordCheckIn(code, rating, note = '') {
     rating,
     note: String(note || '').trim().slice(0, 240),
     snap: weekSnapshot(code),
+    u: Date.now(),
   };
   // One check-in per day: a second one that day replaces the first.
   const rest = ls.checkins.filter((c) => c.day !== day);
@@ -388,7 +412,8 @@ export function todayCounts() {
 export function addWord(id) {
   const ls = langState();
   if (ls.dict[id]) return false;
-  ls.dict[id] = { addedAt: dayStr(), box: 0, due: dayStr(), correct: 0, wrong: 0 };
+  ls.dict[id] = { addedAt: dayStr(), box: 0, due: dayStr(), correct: 0, wrong: 0, u: Date.now() };
+  delete ls.removed[id];
   touchActivity().new += 1;
   const idx = pack ? pack.words.findIndex((w) => w.id === id) : -1;
   if (idx >= 0 && idx + 1 > ls.unlocked) ls.unlocked = idx + 1;
@@ -411,8 +436,8 @@ export function ensureUnlocked(code, packForCode, count) {
   let added = 0;
   for (let i = 0; i < Math.min(count, packForCode.words.length); i++) {
     const id = packForCode.words[i].id;
-    if (!ls.dict[id]) {
-      ls.dict[id] = { addedAt: dayStr(), box: 0, due: dayStr(), correct: 0, wrong: 0 };
+    if (!ls.dict[id] && !ls.removed[id]) {
+      ls.dict[id] = { addedAt: dayStr(), box: 0, due: dayStr(), correct: 0, wrong: 0, u: Date.now() };
       added++;
     }
   }
@@ -422,7 +447,9 @@ export function ensureUnlocked(code, packForCode, count) {
 }
 
 export function removeWord(id) {
-  delete langState().dict[id];
+  const ls = langState();
+  delete ls.dict[id];
+  ls.removed[id] = Date.now();
   save();
 }
 
@@ -469,6 +496,7 @@ export function recordReview(id, ok) {
     e.wrong += 1;
   }
   e.due = addDays(dayStr(), INTERVALS[e.box]);
+  e.u = Date.now();
   touchActivity().reviews += 1;
   save();
 }
@@ -476,7 +504,7 @@ export function recordReview(id, ok) {
 export function resetProgress(id) {
   const e = langState().dict[id];
   if (!e) return;
-  Object.assign(e, { box: 0, due: dayStr(), correct: 0, wrong: 0 });
+  Object.assign(e, { box: 0, due: dayStr(), correct: 0, wrong: 0, u: Date.now() });
   save();
 }
 
@@ -485,6 +513,7 @@ export function setMastered(id) {
   if (!e) return;
   e.box = MASTERED_BOX;
   e.due = addDays(dayStr(), INTERVALS[MASTERED_BOX]);
+  e.u = Date.now();
   save();
 }
 
@@ -503,30 +532,105 @@ export function exportData(code = getState().activeLang) {
   );
 }
 
+// Imports replace the language wholesale: `resetAt` fences off anything older
+// (including this account's server copy), and the imported entries are
+// restamped at the fence so they survive it.
+function restoreLang(code, data) {
+  const s = getState();
+  const t = Date.now();
+  const ls = fillLang({ ...langDefaults(), ...data, goalU: t, resetAt: t, removed: {} });
+  ls.dict = { ...ls.dict };
+  for (const [id, e] of Object.entries(ls.dict)) ls.dict[id] = { ...e, u: t };
+  ls.checkins = ls.checkins.map((c) => ({ ...c, u: t }));
+  s.langs[code] = ls;
+  save();
+}
+
 export function importData(json) {
   const parsed = JSON.parse(json);
   if (parsed?.app !== 'vernacular') throw new Error('Not a Vernacular backup file.');
-  const s = getState();
   if (parsed.version === 2 && parsed.lang && parsed.data) {
-    s.langs[parsed.lang] = { ...langDefaults(), ...parsed.data };
-    save();
+    restoreLang(parsed.lang, parsed.data);
     return parsed.lang;
   }
   if (parsed.state?.dict) {
     // legacy v1 backup: Latin
-    s.langs[DEFAULT_LANG] = {
+    restoreLang(DEFAULT_LANG, {
       dict: parsed.state.dict,
       unlocked: parsed.state.unlocked || 0,
       goal: parsed.state.goal || 3,
       stats: parsed.state.stats || langDefaults().stats,
-    };
-    save();
+    });
     return DEFAULT_LANG;
   }
   throw new Error('Unrecognized backup format.');
 }
 
 export function resetLang(code = getState().activeLang) {
-  getState().langs[code] = langDefaults();
+  getState().langs[code] = { ...langDefaults(), resetAt: Date.now() };
+  save();
+}
+
+// ---- account sync bridge (used by src/sync.js) ----
+
+// The store state in the wire shape shared with the server (lib/merge.mjs).
+// Reminders and pauses are deliberately absent: they are device-local.
+export function syncSnapshot() {
+  const s = getState();
+  const langs = {};
+  for (const [code, raw] of Object.entries(s.langs)) {
+    const ls = fillLang(raw);
+    langs[code] = {
+      goal: ls.goal,
+      goalU: ls.goalU,
+      unlocked: ls.unlocked || 0,
+      resetAt: ls.resetAt,
+      stats: ls.stats,
+      dict: ls.dict,
+      removed: ls.removed,
+      checkins: ls.checkins,
+    };
+  }
+  return {
+    prefs: { activeLang: s.activeLang, accent: s.accent, showMarks: s.showMarks, u: s.prefsU || 0 },
+    langs,
+  };
+}
+
+// Replaces the synced fields with a merged state from the server, leaving the
+// device-local fields (reminders, pausedUntil) of each language untouched.
+export function applyMerged(merged) {
+  const s = getState();
+  const p = merged.prefs || {};
+  s.activeLang = p.activeLang ?? s.activeLang;
+  s.accent = p.accent ?? s.accent;
+  s.showMarks = p.showMarks ?? s.showMarks;
+  s.prefsU = p.u || 0;
+  const langs = {};
+  for (const [code, ml] of Object.entries(merged.langs || {})) {
+    const local = s.langs[code] ? fillLang(s.langs[code]) : langDefaults();
+    langs[code] = {
+      ...local,
+      dict: ml.dict || {},
+      unlocked: ml.unlocked || 0,
+      goal: ml.goal ?? 3,
+      goalU: ml.goalU || 0,
+      resetAt: ml.resetAt || 0,
+      removed: ml.removed || {},
+      stats: ml.stats || langDefaults().stats,
+      checkins: Array.isArray(ml.checkins) ? ml.checkins : local.checkins,
+    };
+  }
+  // Languages the server doesn't know yet keep their local record.
+  for (const [code, ls] of Object.entries(s.langs)) {
+    if (!langs[code]) langs[code] = ls;
+  }
+  s.langs = langs;
+  save();
+}
+
+// A full local wipe (used when signing out of the device).
+export function clearLocalState() {
+  state = defaults();
   save();
 }

@@ -174,6 +174,47 @@ export const SettingsTabIcon = () => (
   </svg>
 );
 
+export const MailIcon = (p) => (
+  <Icon {...p}>
+    <rect x="3" y="5" width="18" height="14" rx="2.5" />
+    <path d="m3.5 7 8.5 6 8.5-6" />
+  </Icon>
+);
+
+export const UserIcon = (p) => (
+  <Icon {...p}>
+    <circle cx="12" cy="8" r="3.6" />
+    <path d="M5 20c.8-3.6 3.6-5.4 7-5.4s6.2 1.8 7 5.4" />
+  </Icon>
+);
+
+export const SignOutIcon = (p) => (
+  <Icon {...p}>
+    <path d="M14 4H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h7" />
+    <path d="m17 8 4 4-4 4" />
+    <path d="M21 12H10" />
+  </Icon>
+);
+
+export const ScrollIcon = (p) => (
+  <Icon {...p}>
+    <path d="M7 4h11a2 2 0 0 1 2 2v11.5" />
+    <path d="M7 4a2 2 0 0 0-2 2v12.5A1.5 1.5 0 0 0 6.5 20H18" />
+    <path d="M20 17.5a2.5 2.5 0 0 1-2 2.5" />
+    <path d="M9.5 9h6M9.5 12.5h6" />
+  </Icon>
+);
+
+// Google's multicolor G mark, the one exception to the stroke style.
+export const GoogleIcon = ({ className = '' }) => (
+  <svg className={`icon google-g ${className}`.trim()} viewBox="0 0 24 24" aria-hidden="true">
+    <path fill="#4285F4" d="M23.5 12.27c0-.85-.08-1.66-.22-2.45H12v4.64h6.45a5.52 5.52 0 0 1-2.4 3.62v3h3.87c2.27-2.09 3.58-5.17 3.58-8.81Z" />
+    <path fill="#34A853" d="M12 24c3.24 0 5.96-1.07 7.94-2.91l-3.87-3a7.25 7.25 0 0 1-10.8-3.8H1.28v3.1A12 12 0 0 0 12 24Z" />
+    <path fill="#FBBC05" d="M5.27 14.29a7.2 7.2 0 0 1 0-4.58v-3.1H1.28a12 12 0 0 0 0 10.78l3.99-3.1Z" />
+    <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.43-3.43A11.98 11.98 0 0 0 1.28 6.61l3.99 3.1A7.17 7.17 0 0 1 12 4.75Z" />
+  </svg>
+);
+
 export const SpinnerIcon = ({ className = '' }) => (
   <svg
     className={`icon spinner ${className}`.trim()}

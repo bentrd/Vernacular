@@ -1,4 +1,4 @@
-const VERSION = 'v2.3.1';
+const VERSION = 'v3.0.0';
 const CACHE = `vernacular-${VERSION}`;
 // Only stable URLs go here. The app bundle ships as content-hashed files under
 // /assets/, which the stale-while-revalidate handler below picks up on first

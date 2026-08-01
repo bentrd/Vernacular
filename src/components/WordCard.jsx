@@ -1,8 +1,11 @@
 import * as db from '../store.js';
+import { glossFirst } from '../lang.js';
 
 const D = (s) => db.display(s);
 
-export const gloss = (w) => [w.en, w.fr].filter(Boolean).join(' · ');
+const ordered = (w) => (glossFirst() === 'fr' ? [w.fr, w.en] : [w.en, w.fr]);
+
+export const gloss = (w) => ordered(w).filter(Boolean).join(' · ');
 
 export function WordCard({ word, veiled = false, onClick }) {
   const Tag = onClick ? 'button' : 'div';
@@ -18,13 +21,29 @@ export function WordCard({ word, veiled = false, onClick }) {
       {word.pos ? <span className="w-pos">{word.pos}</span> : null}
       {!veiled ? (
         <span className="hidden-part">
-          {word.en ? <span className="w-en">{word.en}</span> : null}
-          {word.fr ? <span className={word.en ? 'w-fr' : 'w-en'}>{word.fr}</span> : null}
+          {(() => {
+            const [first, second] = ordered(word);
+            return (
+              <>
+                {first ? <span className="w-en">{first}</span> : null}
+                {second ? <span className={first ? 'w-fr' : 'w-en'}>{second}</span> : null}
+              </>
+            );
+          })()}
           {word.ex ? (
             <span className="w-ex">
               <span className="la">“{D(word.ex)}”</span>
-              <span className="en">{word.exEn}</span>
-              <span className="fr">{word.exFr}</span>
+              {glossFirst() === 'fr' ? (
+                <>
+                  <span className="fr">{word.exFr}</span>
+                  <span className="en">{word.exEn}</span>
+                </>
+              ) : (
+                <>
+                  <span className="en">{word.exEn}</span>
+                  <span className="fr">{word.exFr}</span>
+                </>
+              )}
             </span>
           ) : null}
         </span>

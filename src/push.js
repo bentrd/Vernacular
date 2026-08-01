@@ -3,9 +3,11 @@
 //
 // The schedule lives in two places on purpose: localStorage owns it so the
 // editor is instant and works offline, and every change is mirrored to the
-// server, which is what actually decides when to send.
+// server, which is what actually decides when to send. Server calls carry the
+// account's bearer token; subscriptions are linked to the signed-in user.
 import { VAPID_PUBLIC_KEY } from './config.js';
 import * as db from './store.js';
+import { apiFetch } from './sync.js';
 
 function urlB64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -33,13 +35,11 @@ export async function getSubscription() {
 }
 
 async function post(body) {
-  const res = await fetch('/api/subscribe', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) throw new Error('server');
-  return res.json();
+  try {
+    return await apiFetch('/api/subscribe', { method: 'POST', body: JSON.stringify(body) });
+  } catch {
+    throw new Error('server');
+  }
 }
 
 // Server status: { subscribed, tz, langs: { code: { enabled, delivered, reminders, pausedUntil } } }
@@ -47,9 +47,9 @@ export async function getStatus() {
   const sub = await getSubscription().catch(() => null);
   if (!sub) return { subscribed: false, langs: {} };
   try {
-    const res = await fetch(`/api/subscribe?endpoint=${encodeURIComponent(sub.endpoint)}`);
-    if (!res.ok) return { subscribed: false, langs: {} };
-    return await res.json();
+    return await apiFetch(`/api/subscribe?endpoint=${encodeURIComponent(sub.endpoint)}`, {
+      method: 'GET',
+    });
   } catch {
     return { subscribed: false, langs: {} };
   }
