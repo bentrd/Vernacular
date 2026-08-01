@@ -4,8 +4,12 @@
     {
       "name": "vernacular",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
-      "port": 4173
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
+      "port": 4173,
+      "autoPort": true
     }
   ]
 }

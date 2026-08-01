@@ -336,6 +336,8 @@ h1.title { font-size: 32px; font-weight: 700; letter-spacing: -0.02em; margin-to
 button.setting-row:active { background: var(--surface-2); }
 button.setting-row:disabled { opacity: .45; }
 .setting-row.danger-row .s-title { color: var(--red); }
+.setting-row.danger-row { background: radial-gradient(80% 170% at 4% 38%, var(--red-soft) 0%, transparent 72%); }
+button.setting-row.danger-row:active { background: var(--red-soft); }
 
 /* reminders */
 .back-link { display: flex; align-items: center; gap: 2px; color: var(--text-2); font-size: 15px; font-weight: 600; margin-bottom: 14px; padding: 4px 0; }
