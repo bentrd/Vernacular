@@ -4,11 +4,19 @@
   "outputDirectory": "dist",
   "framework": "vite",
   "functions": {
-    "api/*.js": {
+    "api/cron.js": {
+      "includeFiles": "public/data/packs/**"
+    },
+    "api/subscribe.js": {
       "includeFiles": "public/data/packs/**"
     }
   },
-  "rewrites": [{ "source": "/((?!api/|assets/|data/|icons/).*)", "destination": "/index.html" }],
+  "rewrites": [
+    {
+      "source": "/((?!api/|assets/|data/|icons/|src/|lib/|node_modules/|@vite|@react-refresh|@id/|@fs/).*)",
+      "destination": "/index.html"
+    }
+  ],
   "headers": [
     {
       "source": "/sw.js",

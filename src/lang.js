@@ -1,4 +1,8 @@
 import * as db from './store.js';
+import { cachedAccount } from './auth.js';
+
+// Which gloss language leads (onboarding choice); both always show.
+export const glossFirst = () => (cachedAccount()?.profile?.nativeLang === 'fr' ? 'fr' : 'en');
 
 const FALLBACK_STRINGS = {
   greeting: 'Hello.',

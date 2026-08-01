@@ -572,3 +572,113 @@ button.setting-row.danger-row:active { background: var(--red-soft); }
 :root[data-accent="rose"] { --accent: light-dark(#C0526F, #EE9AB5); --accent-soft: light-dark(rgba(192,82,111,.10), rgba(238,154,181,.16)); }
 :root[data-accent="amber"] { --accent: light-dark(#A87A2A, #E2B267); --accent-soft: light-dark(rgba(168,122,42,.10), rgba(226,178,103,.16)); }
 :root[data-accent="slate"] { --accent: light-dark(#5A6572, #A2B0BF); --accent-soft: light-dark(rgba(90,101,114,.10), rgba(162,176,191,.16)); }
+
+/* ---- account, sign-in, onboarding, legal ---- */
+
+.auth-screen {
+  min-height: 100vh;
+  min-height: 100dvh;
+  max-width: 460px;
+  margin: 0 auto;
+  padding: calc(env(safe-area-inset-top) + 48px) 24px calc(env(safe-area-inset-bottom) + 28px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  background: var(--bg);
+  overflow-y: auto;
+}
+.auth-screen.onboarding { justify-content: flex-start; display: block; padding-top: calc(env(safe-area-inset-top) + 40px); }
+
+.auth-hero { text-align: center; margin-bottom: 28px; }
+.auth-hero.compact { text-align: left; margin-bottom: 4px; }
+.auth-brand {
+  font-family: var(--serif);
+  font-size: 42px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+.auth-tagline { color: var(--text-2); font-size: 15px; margin-top: 8px; }
+
+.auth-card { padding: 22px; }
+.auth-card-title { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; text-align: center; }
+.auth-card-sub { color: var(--text-2); font-size: 14px; line-height: 1.5; text-align: center; margin: 10px 0 16px; overflow-wrap: anywhere; }
+.auth-sent-icon { display: flex; justify-content: center; margin-bottom: 12px; }
+.auth-sent-icon .icon { width: 34px; height: 34px; color: var(--accent); }
+
+.auth-label { display: block; font-size: 13px; font-weight: 600; color: var(--text-2); margin: 2px 2px 6px; }
+.auth-input {
+  width: 100%;
+  background: var(--surface-2);
+  border: none;
+  outline: none;
+  border-radius: 12px;
+  padding: 13px 14px;
+  font-size: 16px;
+  margin-bottom: 12px;
+}
+.auth-input:focus-visible { box-shadow: 0 0 0 2px var(--accent); }
+.auth-input.bare { background: none; border-radius: 0; padding: 2px 0; margin: 0; }
+
+.auth-divider {
+  display: flex; align-items: center; gap: 12px;
+  color: var(--text-3); font-size: 13px; font-weight: 600;
+  margin: 16px 0;
+}
+.auth-divider::before, .auth-divider::after { content: ""; flex: 1; height: 1px; background: var(--hairline); }
+
+.google-g { width: 18px; height: 18px; }
+
+.auth-note { color: var(--text-3); font-size: 12.5px; line-height: 1.5; margin-top: 14px; text-align: center; }
+.auth-legal { color: var(--text-3); font-size: 12.5px; line-height: 1.5; text-align: center; margin-top: 18px; }
+.auth-legal a, .auth-note a, .s-sub a { color: var(--accent); text-decoration: none; font-weight: 500; }
+
+/* segmented control (onboarding language pick) */
+.seg { display: flex; background: var(--surface-2); border-radius: 11px; padding: 3px; gap: 2px; }
+.seg-btn {
+  padding: 7px 14px; border-radius: 9px;
+  font-size: 14px; font-weight: 600; color: var(--text-2);
+}
+.seg-btn.on { background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
+
+/* checkbox row (onboarding terms) */
+.checkbox {
+  width: 26px; height: 26px; border-radius: 8px; flex: none;
+  background: var(--surface-2);
+  display: flex; align-items: center; justify-content: center;
+  transition: background .15s ease;
+}
+.checkbox.on { background: var(--accent); color: #fff; }
+.checkbox svg { width: 15px; height: 15px; }
+
+.onboarding-cta { margin-top: 28px; padding-bottom: 24px; }
+
+/* sync badge in settings */
+.sync-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--text-3); }
+.sync-badge.ok { color: var(--green); }
+.sync-badge .spinner { width: 14px; height: 14px; color: var(--text-3); }
+
+/* legal pages */
+.legal-page {
+  position: fixed; inset: 0; z-index: 80;
+  background: var(--bg);
+  display: flex; flex-direction: column;
+  animation: fadein .18s ease;
+}
+.legal-bar {
+  padding: calc(env(safe-area-inset-top) + 10px) 12px 8px;
+  flex: none;
+}
+.legal-scroll { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.legal-body {
+  max-width: 620px; margin: 0 auto;
+  padding: 4px 24px calc(env(safe-area-inset-bottom) + 48px);
+}
+.legal-body h1.title { font-size: 28px; }
+.legal-date { color: var(--text-3); font-size: 13px; margin-top: 4px; }
+.legal-body h2 { font-size: 16px; font-weight: 700; letter-spacing: -0.01em; margin: 26px 0 8px; }
+.legal-body p, .legal-body li { color: var(--text-2); font-size: 15px; line-height: 1.65; }
+.legal-body p + p { margin-top: 10px; }
+.legal-body ul { padding-left: 20px; margin: 8px 0; }
+.legal-body li { margin: 6px 0; }
+.legal-body li strong, .legal-body p strong { color: var(--text); font-weight: 600; }
+.legal-body a { color: var(--accent); text-decoration: none; font-weight: 500; }

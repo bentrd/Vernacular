@@ -1,4 +1,5 @@
 // Push subscriptions and the reminder schedules attached to them.
+// Requires a signed-in user; subscriptions are linked to the account.
 //
 //   GET  ?endpoint=…                              current server state
 //   POST { subscription, lang, startAt, tz, reminders }  subscribe / enable a language
@@ -8,10 +9,11 @@
 //   POST { op: 'test' | 'disableLang', … }
 //   DELETE { endpoint }                           forget the subscription
 import {
-  loadSubs,
-  saveSubs,
+  ensureLegacyImport,
   findSub,
-  migrateSub,
+  upsertSub,
+  saveSub,
+  deleteSub,
   pruneSentAt,
   sanitizeReminders,
   sanitizeStats,
@@ -20,6 +22,7 @@ import { sendPush } from '../lib/webpush.mjs';
 import { getPack } from '../lib/packs.mjs';
 import { buildPayload } from '../lib/payload.mjs';
 import { defaultReminders, isValidZone, normalizeReminder, zonedNow } from '../lib/reminders.mjs';
+import { getUser, unauthorized } from '../lib/authz.mjs';
 
 const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -58,11 +61,14 @@ function langRecord(sub, lang) {
 
 export default async function handler(req, res) {
   try {
+    const user = await getUser(req);
+    if (!user) return unauthorized(res);
+    await ensureLegacyImport();
+
     if (req.method === 'GET') {
       const endpoint = req.query.endpoint;
       if (!endpoint) return res.status(400).json({ error: 'endpoint required' });
-      const subs = (await loadSubs()).map(migrateSub);
-      const sub = findSub(subs, endpoint);
+      const sub = await findSub(endpoint);
       if (!sub) return res.json({ subscribed: false, langs: {} });
       return res.json({ subscribed: true, tz: sub.tz, langs: publicLangs(sub) });
     }
@@ -72,11 +78,10 @@ export default async function handler(req, res) {
 
       if (body.op === 'test') {
         if (!body.endpoint) return res.status(400).json({ error: 'endpoint required' });
-        const subs = (await loadSubs()).map(migrateSub);
-        const sub = findSub(subs, body.endpoint);
+        const sub = await findSub(body.endpoint);
         if (!sub) return res.status(404).json({ error: 'not subscribed' });
         const ok = await sendPush(sub.subscription, {
-          title: 'Vernacular',
+          title: 'Verbum',
           body: 'Notifications are working. Your reminders will arrive on schedule.',
           url: '/',
           tag: 'test',
@@ -89,8 +94,7 @@ export default async function handler(req, res) {
         if (!body.endpoint || !body.lang) {
           return res.status(400).json({ error: 'endpoint and lang required' });
         }
-        const subs = (await loadSubs()).map(migrateSub);
-        const sub = findSub(subs, body.endpoint);
+        const sub = await findSub(body.endpoint);
         if (!sub) return res.status(404).json({ error: 'not subscribed' });
         const pack = getPack(body.lang);
         if (!pack) return res.status(404).json({ error: 'unknown language' });
@@ -115,11 +119,10 @@ export default async function handler(req, res) {
         if (!body.endpoint || !body.lang) {
           return res.status(400).json({ error: 'endpoint and lang required' });
         }
-        const subs = (await loadSubs()).map(migrateSub);
-        const sub = findSub(subs, body.endpoint);
+        const sub = await findSub(body.endpoint);
         if (sub?.langs?.[body.lang]) {
           sub.langs[body.lang].enabled = false;
-          await saveSubs(subs);
+          await saveSub(sub);
         }
         return res.json({ ok: true });
       }
@@ -129,8 +132,7 @@ export default async function handler(req, res) {
         if (!body.endpoint || !body.lang) {
           return res.status(400).json({ error: 'endpoint and lang required' });
         }
-        const subs = (await loadSubs()).map(migrateSub);
-        const sub = findSub(subs, body.endpoint);
+        const sub = await findSub(body.endpoint);
         if (!sub) return res.status(404).json({ error: 'not subscribed' });
         if (isValidZone(body.tz)) sub.tz = body.tz;
 
@@ -142,7 +144,7 @@ export default async function handler(req, res) {
         }
         if (body.stats) ls.stats = sanitizeStats(body.stats);
         pruneSentAt(ls);
-        await saveSubs(subs);
+        await saveSub(sub);
         return res.json({ ok: true, reminders: ls.reminders });
       }
 
@@ -150,8 +152,7 @@ export default async function handler(req, res) {
       // conditional reminders (streak, goal, "only if idle") stay honest.
       if (body.op === 'sync') {
         if (!body.endpoint) return res.status(400).json({ error: 'endpoint required' });
-        const subs = (await loadSubs()).map(migrateSub);
-        const sub = findSub(subs, body.endpoint);
+        const sub = await findSub(body.endpoint);
         if (!sub) return res.json({ subscribed: false, langs: {} });
         let touched = false;
         if (isValidZone(body.tz) && sub.tz !== body.tz) {
@@ -163,7 +164,7 @@ export default async function handler(req, res) {
           sub.langs[code].stats = sanitizeStats(incoming?.stats);
           touched = true;
         }
-        if (touched) await saveSubs(subs);
+        if (touched) await saveSub(sub);
         return res.json({ subscribed: true, tz: sub.tz, langs: publicLangs(sub) });
       }
 
@@ -171,19 +172,14 @@ export default async function handler(req, res) {
       if (!subscription?.endpoint || !subscription?.keys || !lang) {
         return res.status(400).json({ error: 'subscription and lang required' });
       }
-      const subs = (await loadSubs()).map(migrateSub);
-      let sub = findSub(subs, subscription.endpoint);
-      if (sub) {
-        sub.subscription = subscription;
-      } else {
-        sub = {
-          subscription,
-          tz: isValidZone(tz) ? tz : 'UTC',
-          langs: {},
-          createdAt: new Date().toISOString(),
-        };
-        subs.push(sub);
-      }
+      const existing = await findSub(subscription.endpoint);
+      const sub = existing || {
+        endpoint: subscription.endpoint,
+        subscription,
+        tz: isValidZone(tz) ? tz : 'UTC',
+        langs: {},
+      };
+      sub.subscription = subscription;
       if (isValidZone(tz)) sub.tz = tz;
 
       const ls = langRecord(sub, lang);
@@ -195,16 +191,20 @@ export default async function handler(req, res) {
       if (stats) ls.stats = sanitizeStats(stats);
       pruneSentAt(ls);
 
-      await saveSubs(subs);
+      await upsertSub({
+        endpoint: sub.endpoint,
+        userId: user.id,
+        subscription,
+        tz: sub.tz,
+        langs: sub.langs,
+      });
       return res.json({ ok: true, reminders: ls.reminders });
     }
 
     if (req.method === 'DELETE') {
       const endpoint = req.body?.endpoint;
       if (!endpoint) return res.status(400).json({ error: 'endpoint required' });
-      const subs = (await loadSubs()).map(migrateSub);
-      const next = subs.filter((s) => s.subscription?.endpoint !== endpoint);
-      if (next.length !== subs.length) await saveSubs(next);
+      await deleteSub(endpoint);
       return res.json({ ok: true });
     }
 
