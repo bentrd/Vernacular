@@ -195,7 +195,7 @@ export function Settings({ onOpenLanguages, onOpenInstall, onApplyAccent, onSwit
           />
         </StaticRow>
         {pack?.marks ? (
-          <StaticRow title={pack.marks} subtitle="Show vowel-length marks on words">
+          <StaticRow title={pack.marks} subtitle="Show these marks on words">
             <Toggle
               checked={!!st.showMarks}
               onCheckedChange={(v) => db.setShowMarks(v)}
