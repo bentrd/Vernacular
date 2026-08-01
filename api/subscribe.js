@@ -1,5 +1,60 @@
-import { loadSubs, saveSubs, findSub, migrateSub } from '../lib/subs.mjs';
+// Push subscriptions and the reminder schedules attached to them.
+//
+//   GET  ?endpoint=…                              current server state
+//   POST { subscription, lang, startAt, tz, reminders }  subscribe / enable a language
+//   POST { op: 'schedule', … }                    replace one language's schedule
+//   POST { op: 'sync', … }                        heartbeat: time zone + progress
+//   POST { op: 'preview', … }                     send one reminder right now
+//   POST { op: 'test' | 'disableLang', … }
+//   DELETE { endpoint }                           forget the subscription
+import {
+  loadSubs,
+  saveSubs,
+  findSub,
+  migrateSub,
+  pruneSentAt,
+  sanitizeReminders,
+  sanitizeStats,
+} from '../lib/subs.mjs';
 import { sendPush } from '../lib/webpush.mjs';
+import { getPack } from '../lib/packs.mjs';
+import { buildPayload } from '../lib/payload.mjs';
+import { defaultReminders, isValidZone, normalizeReminder, zonedNow } from '../lib/reminders.mjs';
+
+const DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+function publicLangs(sub) {
+  const langs = {};
+  for (const [code, ls] of Object.entries(sub.langs || {})) {
+    langs[code] = {
+      enabled: ls.enabled !== false,
+      delivered: ls.index || 0,
+      reminders: ls.reminders || [],
+      pausedUntil: ls.pausedUntil || null,
+    };
+  }
+  return langs;
+}
+
+function langRecord(sub, lang) {
+  if (!sub.langs) sub.langs = {};
+  if (!sub.langs[lang]) {
+    // Seeded with the standard schedule, which the app's own list replaces in
+    // the same request. It only shows through if a client ever enables a
+    // language without sending one.
+    sub.langs[lang] = {
+      index: 0,
+      enabled: true,
+      reminders: defaultReminders(),
+      sentAt: {},
+      stats: {},
+    };
+  }
+  const ls = sub.langs[lang];
+  if (!ls.sentAt) ls.sentAt = {};
+  if (!ls.stats) ls.stats = {};
+  return ls;
+}
 
 export default async function handler(req, res) {
   try {
@@ -9,11 +64,7 @@ export default async function handler(req, res) {
       const subs = (await loadSubs()).map(migrateSub);
       const sub = findSub(subs, endpoint);
       if (!sub) return res.json({ subscribed: false, langs: {} });
-      const langs = {};
-      for (const [code, ls] of Object.entries(sub.langs)) {
-        langs[code] = { enabled: ls.enabled !== false, delivered: ls.index || 0 };
-      }
-      return res.json({ subscribed: true, langs });
+      return res.json({ subscribed: true, tz: sub.tz, langs: publicLangs(sub) });
     }
 
     if (req.method === 'POST') {
@@ -26,15 +77,44 @@ export default async function handler(req, res) {
         if (!sub) return res.status(404).json({ error: 'not subscribed' });
         const ok = await sendPush(sub.subscription, {
           title: 'Vernacular',
-          body: 'Notifications are working. New words will arrive daily.',
+          body: 'Notifications are working. Your reminders will arrive on schedule.',
           url: '/',
           tag: 'test',
         });
         return res.json({ sent: ok === true });
       }
 
+      // Send one reminder immediately, exactly as the cron would build it.
+      if (body.op === 'preview') {
+        if (!body.endpoint || !body.lang) {
+          return res.status(400).json({ error: 'endpoint and lang required' });
+        }
+        const subs = (await loadSubs()).map(migrateSub);
+        const sub = findSub(subs, body.endpoint);
+        if (!sub) return res.status(404).json({ error: 'not subscribed' });
+        const pack = getPack(body.lang);
+        if (!pack) return res.status(404).json({ error: 'unknown language' });
+
+        const ls = langRecord(sub, body.lang);
+        const reminder = normalizeReminder({ ...body.reminder, onlyIfIdle: false });
+        const today = zonedNow(sub.tz).day;
+        const built = buildPayload({ pack, code: body.lang, reminder, ls, today });
+        // A preview never consumes a word and never fires the skip conditions
+        // silently: if there is nothing to say, say that instead.
+        const payload = built?.payload || {
+          title: 'Nothing to send yet',
+          body: 'This reminder has nothing to say right now. It stays quiet on days like this.',
+          url: `/?lang=${body.lang}`,
+          tag: `preview-${body.lang}`,
+        };
+        const ok = await sendPush(sub.subscription, payload);
+        return res.json({ sent: ok === true, quiet: !built });
+      }
+
       if (body.op === 'disableLang') {
-        if (!body.endpoint || !body.lang) return res.status(400).json({ error: 'endpoint and lang required' });
+        if (!body.endpoint || !body.lang) {
+          return res.status(400).json({ error: 'endpoint and lang required' });
+        }
         const subs = (await loadSubs()).map(migrateSub);
         const sub = findSub(subs, body.endpoint);
         if (sub?.langs?.[body.lang]) {
@@ -44,27 +124,79 @@ export default async function handler(req, res) {
         return res.json({ ok: true });
       }
 
-      const { subscription, lang, startAt } = body;
+      // Replace one language's schedule.
+      if (body.op === 'schedule') {
+        if (!body.endpoint || !body.lang) {
+          return res.status(400).json({ error: 'endpoint and lang required' });
+        }
+        const subs = (await loadSubs()).map(migrateSub);
+        const sub = findSub(subs, body.endpoint);
+        if (!sub) return res.status(404).json({ error: 'not subscribed' });
+        if (isValidZone(body.tz)) sub.tz = body.tz;
+
+        const ls = langRecord(sub, body.lang);
+        const reminders = sanitizeReminders(body.reminders);
+        if (reminders) ls.reminders = reminders;
+        if (body.pausedUntil === null || DAY_RE.test(String(body.pausedUntil || ''))) {
+          ls.pausedUntil = body.pausedUntil || null;
+        }
+        if (body.stats) ls.stats = sanitizeStats(body.stats);
+        pruneSentAt(ls);
+        await saveSubs(subs);
+        return res.json({ ok: true, reminders: ls.reminders });
+      }
+
+      // Heartbeat from the app: keeps the time zone and progress fresh so
+      // conditional reminders (streak, goal, "only if idle") stay honest.
+      if (body.op === 'sync') {
+        if (!body.endpoint) return res.status(400).json({ error: 'endpoint required' });
+        const subs = (await loadSubs()).map(migrateSub);
+        const sub = findSub(subs, body.endpoint);
+        if (!sub) return res.json({ subscribed: false, langs: {} });
+        let touched = false;
+        if (isValidZone(body.tz) && sub.tz !== body.tz) {
+          sub.tz = body.tz;
+          touched = true;
+        }
+        for (const [code, incoming] of Object.entries(body.langs || {})) {
+          if (!sub.langs?.[code]) continue; // only languages that are subscribed
+          sub.langs[code].stats = sanitizeStats(incoming?.stats);
+          touched = true;
+        }
+        if (touched) await saveSubs(subs);
+        return res.json({ subscribed: true, tz: sub.tz, langs: publicLangs(sub) });
+      }
+
+      const { subscription, lang, startAt, tz, reminders, stats } = body;
       if (!subscription?.endpoint || !subscription?.keys || !lang) {
         return res.status(400).json({ error: 'subscription and lang required' });
       }
       const subs = (await loadSubs()).map(migrateSub);
-      const existing = findSub(subs, subscription.endpoint);
-      if (existing) {
-        existing.subscription = subscription;
-        const ls = existing.langs[lang] || { index: 0 };
-        ls.index = Math.max(ls.index || 0, Number(startAt) || 0);
-        ls.enabled = true;
-        existing.langs[lang] = ls;
+      let sub = findSub(subs, subscription.endpoint);
+      if (sub) {
+        sub.subscription = subscription;
       } else {
-        subs.push({
+        sub = {
           subscription,
-          langs: { [lang]: { index: Number(startAt) || 0, enabled: true } },
+          tz: isValidZone(tz) ? tz : 'UTC',
+          langs: {},
           createdAt: new Date().toISOString(),
-        });
+        };
+        subs.push(sub);
       }
+      if (isValidZone(tz)) sub.tz = tz;
+
+      const ls = langRecord(sub, lang);
+      ls.index = Math.max(Number(ls.index) || 0, Number(startAt) || 0);
+      ls.enabled = true;
+      ls.pausedUntil = null;
+      const clean = sanitizeReminders(reminders);
+      if (clean) ls.reminders = clean;
+      if (stats) ls.stats = sanitizeStats(stats);
+      pruneSentAt(ls);
+
       await saveSubs(subs);
-      return res.json({ ok: true });
+      return res.json({ ok: true, reminders: ls.reminders });
     }
 
     if (req.method === 'DELETE') {

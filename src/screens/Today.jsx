@@ -6,7 +6,7 @@ import { D, S } from '../lang.js';
 import { WordCard } from '../components/WordCard.jsx';
 import { ProgressBar } from '../ui/Progress.jsx';
 import { toast } from '../ui/toast.js';
-import { GlobeIcon, LandmarkIcon, PhoneIcon, SparklesIcon } from '../icons.jsx';
+import { GlobeIcon, LandmarkIcon, PhoneIcon, SparklesIcon, TrophyIcon } from '../icons.jsx';
 
 function LearnSlot({ skipped, onSkip }) {
   const [revealed, setRevealed] = useState(false);
@@ -72,7 +72,14 @@ function LearnSlot({ skipped, onSkip }) {
   );
 }
 
-export function Today({ onOpenLanguages, onOpenInstall, onStartDueReview, skipped, onSkip }) {
+export function Today({
+  onOpenLanguages,
+  onOpenInstall,
+  onOpenCheckIn,
+  onStartDueReview,
+  skipped,
+  onSkip,
+}) {
   useStore();
   const ls = db.langState();
   const t = db.todayCounts();
@@ -152,6 +159,18 @@ export function Today({ onOpenLanguages, onOpenInstall, onStartDueReview, skippe
               {c.due} word{c.due === 1 ? '' : 's'} due for review
             </span>
             <span className="b-sub">A quick quiz keeps them in memory</span>
+          </span>
+        </button>
+      ) : null}
+
+      {db.checkInDue() ? (
+        <button type="button" className="banner" onClick={onOpenCheckIn}>
+          <span className="b-icon">
+            <TrophyIcon />
+          </span>
+          <span className="b-text">
+            <span className="b-title">Time to check in</span>
+            <span className="b-sub">Rate how {pack?.name || 'it'} is going and see your week</span>
           </span>
         </button>
       ) : null}

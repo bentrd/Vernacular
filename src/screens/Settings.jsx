@@ -4,11 +4,13 @@ import * as push from '../push.js';
 import { APP_VERSION } from '../config.js';
 import { useStore } from '../useStore.js';
 import { S } from '../lang.js';
+import { summarize } from '../../lib/reminders.mjs';
 import { Group, ActionRow, StaticRow } from '../ui/Row.jsx';
 import { Toggle } from '../ui/Toggle.jsx';
 import { Stepper } from '../ui/Stepper.jsx';
 import { AccentPicker } from '../ui/AccentPicker.jsx';
 import { ConfirmSheet } from '../sheets/ConfirmSheet.jsx';
+import { Reminders } from './Reminders.jsx';
 import { toast } from '../ui/toast.js';
 import { ChevronIcon, DownloadIcon, UploadIcon } from '../icons.jsx';
 
@@ -18,9 +20,8 @@ export function Settings({ onOpenLanguages, onOpenInstall, onApplyAccent, onSwit
   const ls = db.langState();
   const pack = db.activePack();
 
-  const [index, setIndex] = useState([]);
+  const [sub, setSub] = useState(null); // null | 'reminders'
   const [status, setStatus] = useState({ subscribed: false, langs: {} });
-  const [busyLang, setBusyLang] = useState(null);
   const [confirmReset, setConfirmReset] = useState(false);
   const fileRef = useRef(null);
 
@@ -28,18 +29,8 @@ export function Settings({ onOpenLanguages, onOpenInstall, onApplyAccent, onSwit
   const denied = supported && Notification.permission === 'denied';
   const iosNotInstalled = push.isIOS() && !push.isStandalone();
 
-  useEffect(() => {
-    let live = true;
-    db.loadIndex()
-      .then((i) => live && setIndex(i))
-      .catch(() => {});
-    return () => {
-      live = false;
-    };
-  }, []);
-
   const refreshStatus = useCallback(() => {
-    if (!supported || denied) return;
+    if (!supported || denied) return undefined;
     let live = true;
     push.getStatus().then((s) => live && setStatus(s));
     return () => {
@@ -47,28 +38,34 @@ export function Settings({ onOpenLanguages, onOpenInstall, onApplyAccent, onSwit
     };
   }, [supported, denied]);
 
-  useEffect(() => refreshStatus(), [refreshStatus]);
+  // Coming back from the Reminders screen: the toggles there may have changed.
+  useEffect(() => refreshStatus(), [refreshStatus, sub]);
 
-  async function toggleNotifications(code, enable) {
-    setBusyLang(code);
-    try {
-      if (enable) {
-        await push.enableLang(code);
-        toast('Notifications on. First word coming soon');
-      } else {
-        await push.disableLang(code);
-        toast('Notifications off');
-      }
-      setStatus(await push.getStatus());
-    } catch (err) {
-      toast(err.message === 'denied' ? 'Permission was denied' : 'Could not update, try again');
-    } finally {
-      setBusyLang(null);
-    }
-  }
+  // The sub-screen is not a route, so nothing else resets the scroll for it.
+  useEffect(() => {
+    const scroller = document.querySelector('.scroll');
+    if (scroller) scroller.scrollTop = 0;
+  }, [sub]);
 
-  const anyEnabled = Object.values(status.langs || {}).some((l) => l?.enabled);
+  const activeCode = st.activeLang;
+  const remindersOn = !!status.langs?.[activeCode]?.enabled;
   const packName = pack?.name || '';
+
+  const reminderSummary = !supported
+    ? iosNotInstalled
+      ? 'Add to Home Screen to turn these on'
+      : 'Not supported in this browser'
+    : denied
+      ? 'Blocked. Allow notifications in iOS Settings'
+      : !remindersOn
+        ? `Off for ${packName}`
+        : db.pausedUntil(activeCode)
+          ? 'Paused'
+          : summarize(db.reminders(activeCode));
+
+  if (sub === 'reminders') {
+    return <Reminders onBack={() => setSub(null)} onOpenInstall={onOpenInstall} />;
+  }
 
   return (
     <>
@@ -109,67 +106,26 @@ export function Settings({ onOpenLanguages, onOpenInstall, onApplyAccent, onSwit
 
       <div className="section-label">Notifications</div>
       <Group>
-        {!supported && iosNotInstalled ? (
-          <ActionRow
-            title="Add to Home Screen first"
-            subtitle="iPhone push notifications only work once Vernacular is installed. Tap for instructions."
-            value={<ChevronIcon />}
-            onClick={onOpenInstall}
-          />
-        ) : null}
-
-        {!supported && !iosNotInstalled ? (
-          <StaticRow
-            title="Not supported here"
-            subtitle="This browser doesn't support web push."
-          />
-        ) : null}
-
-        {supported && denied ? (
-          <StaticRow
-            title="Notifications blocked"
-            subtitle="Allow notifications for Vernacular in iOS Settings, then come back."
-          />
-        ) : null}
-
-        {supported && !denied ? (
-          <>
-            <StaticRow
-              title="Daily words, per language"
-              subtitle="3 new words during the day and one evening review, for every language you enable."
-            />
-            {index.map((p) => (
-              <StaticRow key={p.code} title={p.native}>
-                <Toggle
-                  checked={!!status.langs?.[p.code]?.enabled}
-                  disabled={busyLang != null}
-                  onCheckedChange={(v) => toggleNotifications(p.code, v)}
-                  aria-label={`Notifications for ${p.name}`}
-                />
-              </StaticRow>
-            ))}
-            {anyEnabled ? (
-              <ActionRow
-                title="Send a test notification"
-                value={<ChevronIcon />}
-                onClick={async () => {
-                  try {
-                    await push.sendTestPush();
-                    toast('Test sent. Check in a few seconds');
-                  } catch {
-                    toast('Could not send test');
-                  }
-                }}
-              />
-            ) : null}
-          </>
-        ) : null}
+        <ActionRow
+          title="Reminders"
+          subtitle={reminderSummary}
+          value={<ChevronIcon />}
+          onClick={() => setSub('reminders')}
+        />
       </Group>
 
       <div className="section-label">Learning</div>
       <Group>
         <StaticRow title="Daily goal" subtitle={`New ${packName} words per day`}>
-          <Stepper value={ls.goal} onValueChange={(n) => db.setGoal(n)} label="Daily goal" />
+          <Stepper
+            value={ls.goal}
+            onValueChange={(n) => {
+              db.setGoal(n);
+              // Goal reminders compare against this number, so the server needs it.
+              push.saveSchedule(activeCode);
+            }}
+            label="Daily goal"
+          />
         </StaticRow>
       </Group>
 

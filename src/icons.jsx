@@ -130,6 +130,12 @@ export const CheckIcon = (p) => (
   </Icon>
 );
 
+export const PlusIcon = (p) => (
+  <Icon {...p}>
+    <path d="M12 5v14M5 12h14" />
+  </Icon>
+);
+
 export const ChevronIcon = (p) => (
   <Icon {...p}>
     <path d="m9 5.5 6.5 6.5L9 18.5" />

@@ -16,6 +16,7 @@ import { Session } from './screens/Session.jsx';
 import { LanguageSheet } from './sheets/LanguageSheet.jsx';
 import { WordSheet } from './sheets/WordSheet.jsx';
 import { InstallSheet } from './sheets/InstallSheet.jsx';
+import { CheckInSheet } from './sheets/CheckInSheet.jsx';
 import {
   LibraryTabIcon,
   PracticeTabIcon,
@@ -40,13 +41,19 @@ export function applyAccent() {
   document.documentElement.dataset.accent = db.getState().accent || 'lilac';
 }
 
-export function App({ initialRoute = 'today', initialWordId = null, initialSession = null }) {
+export function App({
+  initialRoute = 'today',
+  initialWordId = null,
+  initialSession = null,
+  initialCheckIn = false,
+}) {
   useStore();
   const [route, setRoute] = useState(initialRoute);
   const [session, setSession] = useState(initialSession);
   const [skipped, setSkipped] = useState(() => new Set());
   const [langOpen, setLangOpen] = useState(false);
   const [installOpen, setInstallOpen] = useState(false);
+  const [checkInOpen, setCheckInOpen] = useState(initialCheckIn);
   const [wordId, setWordId] = useState(initialWordId);
   const scrollRef = useRef(null);
 
@@ -105,6 +112,9 @@ export function App({ initialRoute = 'today', initialWordId = null, initialSessi
         if (db.counts().total >= 1) {
           setSession({ mode: 'choice', options: { dueOnly: db.counts().due > 0 } });
         }
+      } else if (params.get('assess')) {
+        go('today');
+        setCheckInOpen(true);
       }
     };
     navigator.serviceWorker.addEventListener('message', onMessage);
@@ -139,6 +149,7 @@ export function App({ initialRoute = 'today', initialWordId = null, initialSessi
 
   const openLanguages = useCallback(() => setLangOpen(true), []);
   const openInstall = useCallback(() => setInstallOpen(true), []);
+  const openCheckIn = useCallback(() => setCheckInOpen(true), []);
 
   return (
     <Toast.Provider toastManager={toastManager}>
@@ -154,6 +165,7 @@ export function App({ initialRoute = 'today', initialWordId = null, initialSessi
                     onSkip={(id) => setSkipped((s) => new Set(s).add(id))}
                     onOpenLanguages={openLanguages}
                     onOpenInstall={openInstall}
+                    onOpenCheckIn={openCheckIn}
                     onStartDueReview={() => startSession('choice', { dueOnly: true })}
                   />
                 </Tabs.Panel>
@@ -172,7 +184,7 @@ export function App({ initialRoute = 'today', initialWordId = null, initialSessi
                       onExitToToday={() => go('today')}
                     />
                   ) : (
-                    <Practice onStart={startSession} />
+                    <Practice onStart={startSession} onOpenCheckIn={openCheckIn} />
                   )}
                 </Tabs.Panel>
 
@@ -200,6 +212,11 @@ export function App({ initialRoute = 'today', initialWordId = null, initialSessi
 
         <LanguageSheet open={langOpen} onOpenChange={setLangOpen} onSwitched={onLangSwitched} />
         <InstallSheet open={installOpen} onOpenChange={setInstallOpen} />
+        <CheckInSheet
+          open={checkInOpen}
+          onOpenChange={setCheckInOpen}
+          onStartReview={() => startSession('choice', { dueOnly: true })}
+        />
         <WordSheet wordId={wordId} onOpenChange={(o) => !o && setWordId(null)} />
       </Drawer.Provider>
 

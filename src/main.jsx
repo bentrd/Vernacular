@@ -6,13 +6,14 @@ import './main.css';
 
 const ROUTES = ['today', 'library', 'practice', 'settings'];
 
-// Deep links from a notification tap: ?lang=&word=&review=
+// Deep links from a notification tap: ?lang=&word=&review=&assess=
 async function readLaunchParams() {
   const params = new URLSearchParams(location.search);
   const lang = params.get('lang');
   const wordId = params.get('word');
   const review = params.get('review');
-  if (lang || wordId || review) history.replaceState(null, '', location.pathname);
+  const assess = params.get('assess');
+  if (lang || wordId || review || assess) history.replaceState(null, '', location.pathname);
 
   if (lang && lang !== db.getState().activeLang) {
     await db.activatePack(lang).catch(() => {});
@@ -27,6 +28,7 @@ async function readLaunchParams() {
       initialSession: { mode: 'choice', options: { dueOnly: db.counts().due > 0 } },
     };
   }
+  if (assess) return { initialRoute: 'today', initialCheckIn: true };
   return {};
 }
 
@@ -55,6 +57,7 @@ async function boot() {
         initialRoute={launch.initialRoute || (ROUTES.includes(hashRoute) ? hashRoute : 'today')}
         initialWordId={launch.initialWordId || null}
         initialSession={launch.initialSession || null}
+        initialCheckIn={!!launch.initialCheckIn}
       />
     </StrictMode>
   );
