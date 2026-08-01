@@ -118,7 +118,7 @@ export function Reminders({ onBack, onOpenInstall }) {
           {iosNotInstalled
             ? 'Reminders arrive as push notifications, which iPhone only allows once the app is on your Home Screen.'
             : denied
-              ? 'Notifications are blocked for Vernacular. Allow them in iOS Settings, then come back.'
+              ? 'Notifications are blocked for Verbum. Allow them in iOS Settings, then come back.'
               : 'This browser does not support web push.'}
         </p>
         {iosNotInstalled ? (

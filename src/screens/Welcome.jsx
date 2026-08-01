@@ -42,7 +42,7 @@ export function Welcome() {
   return (
     <div className="auth-screen">
       <div className="auth-hero">
-        <div className="auth-brand">Vernacular</div>
+        <div className="auth-brand">Verbum</div>
         <p className="auth-tagline">Learn a language, one word at a time.</p>
       </div>
 

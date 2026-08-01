@@ -68,7 +68,7 @@ self.addEventListener('fetch', (event) => {
 self.addEventListener('push', (event) => {
   let data = {};
   try { data = event.data.json(); } catch { /* ignore */ }
-  const title = data.title || 'Vernacular';
+  const title = data.title || 'Verbum';
   const options = {
     body: data.body || 'Novum verbum tē exspectat.',
     icon: '/icons/icon-192.png',

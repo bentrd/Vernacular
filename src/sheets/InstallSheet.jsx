@@ -5,7 +5,7 @@ export function InstallSheet({ open, onOpenChange }) {
     <Sheet
       open={open}
       onOpenChange={onOpenChange}
-      title="Install Vernacular"
+      title="Install Verbum"
       description="To get word notifications on your iPhone:"
     >
       <div className="card install-steps">
@@ -16,7 +16,7 @@ export function InstallSheet({ open, onOpenChange }) {
           <li>
             Choose <strong>Add to Home Screen</strong>
           </li>
-          <li>Open Vernacular from your Home Screen</li>
+          <li>Open Verbum from your Home Screen</li>
           <li>
             Enable notifications in <strong>Settings</strong>
           </li>

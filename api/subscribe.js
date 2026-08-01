@@ -81,7 +81,7 @@ export default async function handler(req, res) {
         const sub = await findSub(body.endpoint);
         if (!sub) return res.status(404).json({ error: 'not subscribed' });
         const ok = await sendPush(sub.subscription, {
-          title: 'Vernacular',
+          title: 'Verbum',
           body: 'Notifications are working. Your reminders will arrive on schedule.',
           url: '/',
           tag: 'test',

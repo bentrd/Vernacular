@@ -11,9 +11,9 @@ function Terms() {
       <h1 className="title">Terms of Service</h1>
       <p className="legal-date">Effective {EFFECTIVE}</p>
 
-      <h2>1. What Vernacular is</h2>
+      <h2>1. What Verbum is</h2>
       <p>
-        Vernacular is a small language-learning app: it teaches vocabulary with daily words,
+        Verbum is a small language-learning app: it teaches vocabulary with daily words,
         spaced repetition, and optional push notifications. It is a personal project operated by
         Benjamin Tordjman ("we", "us"). By creating an account or using the app you agree to
         these terms.
@@ -24,7 +24,7 @@ function Terms() {
         You sign in with an email link or a Google account; there are no passwords. You are
         responsible for keeping access to your email or Google account secure. Accounts that
         sign in with a Google address are matched to the same account as an email link for that
-        address. You must be at least 13 years old to use Vernacular.
+        address. You must be at least 13 years old to use Verbum.
       </p>
 
       <h2>3. Your data</h2>
@@ -50,7 +50,7 @@ function Terms() {
 
       <h2>6. Availability and warranty</h2>
       <p>
-        Vernacular is provided free of charge, as is, without warranties of any kind. We aim to
+        Verbum is provided free of charge, as is, without warranties of any kind. We aim to
         keep it running and your data safe, but we cannot promise uninterrupted service, and we
         are not liable for damages arising from its use, to the maximum extent permitted by
         law. Keeping an export of data you care about is always a good idea.
@@ -58,7 +58,7 @@ function Terms() {
 
       <h2>7. Ending things</h2>
       <p>
-        You can stop using Vernacular and delete your account at any time from Settings, which
+        You can stop using Verbum and delete your account at any time from Settings, which
         removes your data as described in the Privacy Policy. We may terminate or suspend the
         service itself; if we ever do, we will make reasonable efforts to give notice so you
         can export your data.

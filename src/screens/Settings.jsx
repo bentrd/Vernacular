@@ -273,7 +273,7 @@ export function Settings({ onOpenLanguages, onOpenInstall, onApplyAccent, onSwit
             toast(`Restored ${lang.toUpperCase()} library`);
             if (lang !== db.getState().activeLang) await onSwitchLang(lang);
           } catch {
-            toast('That file doesn’t look like a Vernacular backup');
+            toast('That file doesn’t look like a Verbum backup');
           }
         }}
       />
@@ -301,7 +301,7 @@ export function Settings({ onOpenLanguages, onOpenInstall, onApplyAccent, onSwit
           value={`${db.allWords().length.toLocaleString('en-US')} words`}
         />
         <StaticRow
-          title="Vernacular"
+          title="Verbum"
           subtitle={`${S('madeWith')} · your words sync to your account and stay on this device for offline use`}
         />
       </Group>

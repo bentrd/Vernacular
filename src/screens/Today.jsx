@@ -143,7 +143,7 @@ export function Today({
             <PhoneIcon />
           </span>
           <span className="b-text">
-            <span className="b-title">Add Vernacular to your Home Screen</span>
+            <span className="b-title">Add Verbum to your Home Screen</span>
             <span className="b-sub">Required for push notifications on iPhone</span>
           </span>
         </button>

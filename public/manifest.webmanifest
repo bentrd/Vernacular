@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "Vernacular",
-  "short_name": "Vernacular",
+  "name": "Verbum",
+  "short_name": "Verbum",
   "description": "Learn a language, one word at a time.",
   "start_url": "/",
   "scope": "/",
