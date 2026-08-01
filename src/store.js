@@ -105,7 +105,8 @@ export const allWords = () => pack?.words || [];
 export const wordById = (id) => byId?.get(id);
 export const packStrings = () => pack?.strings || {};
 
-const foldKey = (s) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+const foldKey = (s) =>
+  s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/ς/g, 'σ');
 export function searchDictionary(q, limit = 50) {
   if (!pack || !q) return [];
   if (!pack.searchIndex) {

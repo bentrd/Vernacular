@@ -5,10 +5,15 @@
 //   WikDict sqlite exports (Wiktionary-derived, CC-BY-SA): <l>-en / <l>-fr pairs
 //   CC-CEDICT (CC-BY-SA): Chinese with pinyin
 //   hermitdave/FrequencyWords (OpenSubtitles): 50k frequency lists
+//   Kaikki.org wiktextract JSONL (CC-BY-SA): Ancient Greek (en + fr wiktionaries)
+//
+// Languages whose sources are absent from SRC are left untouched, so the
+// script can rebuild a single pack from a partial source directory.
 //
 // Usage: node tools/build-packs.mjs <path-to-source-dir>
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, createReadStream } from 'node:fs';
 import { execSync } from 'node:child_process';
+import { createInterface } from 'node:readline';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -280,8 +285,165 @@ function buildZhTier2() {
   return entries;
 }
 
+// --- Ancient Greek (kaikki.org wiktextract JSONL) ---
+
+const GRC_POS = {
+  noun: 'noun', verb: 'verb', adj: 'adjective', adv: 'adverb',
+  pron: 'pronoun', prep: 'preposition', conj: 'conjunction',
+  particle: 'particle', intj: 'interjection', num: 'numeral',
+};
+
+// Wiktionary decorates headwords with metrical length marks (ᾱ̆); strip them,
+// but keep breathings, accents and iota subscript, which are real orthography.
+const grcClean = (s) =>
+  s.normalize('NFD').replace(/[̄̆]/g, '').normalize('NFC');
+
+const grcScriptOk = (s) => /^(?:[Ͱ-Ͽἀ-῿]|[̀-ͯ])+$/u.test(s.normalize('NFD'));
+
+// Scholarly transliteration: ē/ō for η/ω, th/ph/ch/ps, h for rough breathing,
+// y for lone upsilon but u in diphthongs, ng for γγ/γκ/γξ/γχ, i for subscript.
+const GRC_LETTERS = {
+  'α': 'a', 'β': 'b', 'γ': 'g', 'δ': 'd', 'ε': 'e',
+  'ζ': 'z', 'η': 'ē', 'θ': 'th', 'ι': 'i', 'κ': 'k',
+  'λ': 'l', 'μ': 'm', 'ν': 'n', 'ξ': 'x', 'ο': 'o',
+  'π': 'p', 'ρ': 'r', 'σ': 's', 'ς': 's', 'τ': 't',
+  'υ': 'y', 'φ': 'ph', 'χ': 'ch', 'ψ': 'ps', 'ω': 'ō',
+};
+export function grcTranslit(word) {
+  const chars = [...word.normalize('NFD').toLowerCase()];
+  const bases = chars.filter((c) => !(c >= '̀' && c <= 'ͯ'));
+  const out = [];
+  let hAtStart = false;
+  let baseIdx = -1;
+  for (const c of chars) {
+    if (c === '̔') {
+      // rough breathing: ῥ becomes rh, otherwise an initial h
+      if (out.length && out[out.length - 1] === 'r') out[out.length - 1] = 'rh';
+      else hAtStart = true;
+      continue;
+    }
+    if (c === 'ͅ') { out.push('i'); continue; } // iota subscript
+    if (c >= '̀' && c <= 'ͯ') continue;
+    baseIdx += 1;
+    let t = GRC_LETTERS[c];
+    if (t === undefined) { out.push(c); continue; }
+    if (c === 'γ' && 'γκξχ'.includes(bases[baseIdx + 1])) t = 'n';
+    if (c === 'υ') {
+      const prev = bases[baseIdx - 1];
+      const next = bases[baseIdx + 1];
+      if ('αεοη'.includes(prev) || next === 'ι') t = 'u';
+    }
+    out.push(t);
+  }
+  return (hAtStart ? 'h' : '') + out.join('');
+}
+
+const GRC_ARTICLE = { m: 'ὁ', f: 'ἡ', n: 'τό', mf: 'ὁ/ἡ' };
+
+function kaikkiGlosses(w) {
+  const parts = [];
+  for (const s of w.senses || []) {
+    const tags = s.tags || [];
+    if (tags.includes('form-of') || tags.includes('alt-of') || s.form_of || s.alt_of) continue;
+    const g = s.glosses?.[s.glosses.length - 1];
+    if (!g) continue;
+    if (/^(form|inflection|alternative (form|spelling)|romanization|variant) of/i.test(g)) continue;
+    parts.push(g.replace(/\s*\.$/, ''));
+  }
+  return parts;
+}
+
+async function loadKaikki(file, onEntry) {
+  const rl = createInterface({ input: createReadStream(join(SRC, file)), crlfDelay: Infinity });
+  for await (const line of rl) {
+    if (!line) continue;
+    try { onEntry(JSON.parse(line)); } catch { /* skip malformed line */ }
+  }
+}
+
+// Dictionary line in the style of the curated core: genitive + article for
+// nouns ("λόγος, λόγου, ὁ"), the three genders for adjectives.
+function grcGline(w, hw, posName) {
+  const heads = (w.forms || []).filter((f) => !f.source);
+  const headForm = (tag) => {
+    const f = heads.find((x) => (x.tags || []).includes(tag));
+    return f ? grcClean(f.form) : '';
+  };
+  if (posName === 'noun') {
+    const expansion = w.head_templates?.[0]?.expansion || '';
+    const genderMatch = expansion.match(/\)\s+(m or f|f or m|m|f|n)\b/);
+    let gender = genderMatch ? genderMatch[1] : '';
+    if (!gender) {
+      const tags = heads.find((x) => (x.tags || []).includes('canonical'))?.tags || [];
+      gender = tags.includes('masculine') ? 'm' : tags.includes('feminine') ? 'f' : tags.includes('neuter') ? 'n' : '';
+    }
+    const art = GRC_ARTICLE[gender.includes('or') ? 'mf' : gender] || '';
+    const gen = headForm('genitive');
+    if (gen && art) return `${hw}, ${gen}, ${art}`;
+    if (gen) return `${hw}, ${gen}`;
+    if (art) return `${hw}, ${art}`;
+    return '';
+  }
+  if (posName === 'adjective') {
+    const fem = headForm('feminine');
+    const neut = headForm('neuter');
+    if (fem && neut) return `${hw}, ${fem}, ${neut}`;
+    if (neut) return `${hw}, ${neut}`;
+    return '';
+  }
+  return '';
+}
+
+async function buildGrcTier2() {
+  if (!existsSync(join(SRC, 'kaikki-grc-en.jsonl'))) return null;
+
+  // frwiktionary glosses are sentence-cased; the other packs gloss in
+  // lowercase, so match them (proper capitals like "Zeus" stay).
+  const decap = (s) => (/^[A-ZÀ-ÖØ-Þ][a-zà-öø-ÿœ]/.test(s) ? s[0].toLowerCase() + s.slice(1) : s);
+
+  const fr = new Map(); // NFC hw -> gloss parts
+  if (existsSync(join(SRC, 'kaikki-grc-fr.jsonl'))) {
+    await loadKaikki('kaikki-grc-fr.jsonl', (w) => {
+      if (!(w.pos in GRC_POS) || !w.word) return;
+      const hw = grcClean(w.word);
+      const parts = kaikkiGlosses(w).map(decap);
+      if (!parts.length) return;
+      const cur = fr.get(hw);
+      if (cur) cur.push(...parts);
+      else fr.set(hw, parts);
+    });
+  }
+
+  const entries = new Map(); // NFC hw -> entry
+  await loadKaikki('kaikki-grc-en.jsonl', (w) => {
+    const posName = GRC_POS[w.pos];
+    if (!posName || !w.word) return;
+    const hw = grcClean(w.word);
+    if (!grcScriptOk(hw) || !wordOk(hw)) return;
+    const parts = kaikkiGlosses(w);
+    if (!parts.length) return;
+    const enGloss = clipGloss(parts);
+    if (!enGloss) return;
+    const frGloss = clipGloss(fr.get(hw) || []);
+    const e = {
+      hw,
+      rom: grcTranslit(hw),
+      pos: posName,
+      en: enGloss,
+      importance: parts.length + (frGloss ? 2 : 0),
+    };
+    const gline = grcGline(w, hw, posName);
+    if (gline) e.g = gline;
+    if (frGloss) e.fr = frGloss;
+    const cur = entries.get(hw);
+    if (!cur || e.importance > cur.importance) entries.set(hw, e);
+  });
+  return entries;
+}
+
 const CONFIGS = {
   la: { enPair: 'la-en', frPair: 'la-fr', freq: null },
+  grc: { kaikki: true, freq: null },
   es: { enPair: 'es-en', frPair: 'es-fr', freq: 'es' },
   en: { enPair: null, frPair: 'en-fr', freq: 'en' },
   fr: { enPair: 'fr-en', frPair: null, freq: 'fr' },
@@ -292,26 +454,44 @@ const CONFIGS = {
 
 const ATTRIB = {
   la: 'Dictionary data: WikDict / Wiktionary (CC BY-SA)',
+  grc: 'Dictionary data: Wiktionary via Kaikki.org (CC BY-SA)',
   zh: 'Dictionary data: CC-CEDICT and WikDict / Wiktionary (CC BY-SA)',
   default: 'Dictionary data: WikDict / Wiktionary (CC BY-SA); frequency: OpenSubtitles',
 };
 
+// A language is only rebuilt when its dictionary sources are present, so a
+// partial SRC dir (say, just the Greek files) can't wipe the other packs.
+const hasSources = (code, cfg) => {
+  if (code === 'zh') return existsSync(join(SRC, 'cedict.txt'));
+  if (cfg.kaikki) return existsSync(join(SRC, 'kaikki-grc-en.jsonl'));
+  return [cfg.enPair, cfg.frPair].filter(Boolean).some((p) => existsSync(join(SRC, `${p}.sqlite3`)));
+};
+
 for (const [code, cfg] of Object.entries(CONFIGS)) {
+  if (!hasSources(code, cfg)) {
+    console.log(`${code}: sources not in SRC, pack left untouched`);
+    continue;
+  }
   const packPath = `${OUT}/${code}.json`;
   const pack = JSON.parse(readFileSync(packPath, 'utf8'));
   const core = JSON.parse(readFileSync(`tools/core/${code}.json`, 'utf8'));
 
-  const tier2 = code === 'zh' ? buildZhTier2() : buildTier2(code, cfg);
+  const tier2 =
+    code === 'zh' ? buildZhTier2() : cfg.kaikki ? await buildGrcTier2() : buildTier2(code, cfg);
+
+  // Greek folds breathings and accents away, which would collapse real minimal
+  // pairs (εἷς/εἰς, πότε/ποτέ), so its dedupe key keeps the marks.
+  const hwKey = code === 'grc' ? (s) => s.normalize('NFC') : fold;
 
   const usedIds = new Set(core.map((w) => w.id));
-  const usedHws = new Set(core.map((w) => fold(w.hw)));
+  const usedHws = new Set(core.map((w) => hwKey(w.hw)));
   const words = [...core];
 
   const take = (key) => {
     if (words.length >= WORD_CAP) return;
     const e = tier2.get(key);
-    if (!e || usedHws.has(fold(e.hw))) return;
-    usedHws.add(fold(e.hw));
+    if (!e || usedHws.has(hwKey(e.hw))) return;
+    usedHws.add(hwKey(e.hw));
     tier2.delete(key);
     const { importance, ...entry } = e;
     words.push({ id: makeId(e.rom || e.hw, usedIds), ...entry });
@@ -330,7 +510,7 @@ for (const [code, cfg] of Object.entries(CONFIGS)) {
 }
 
 // rebuild the index
-const codes = ['la', 'es', 'en', 'fr', 'it', 'ru', 'zh'];
+const codes = ['la', 'grc', 'es', 'en', 'fr', 'it', 'ru', 'zh'];
 const index = codes.map((c) => {
   const p = JSON.parse(readFileSync(`${OUT}/${c}.json`, 'utf8'));
   return { code: p.code, name: p.name, native: p.native, count: p.words.length, marks: p.marks || null };

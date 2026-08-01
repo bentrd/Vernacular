@@ -7,6 +7,13 @@
     "marks": "Macrons"
   },
   {
+    "code": "grc",
+    "name": "Ancient Greek",
+    "native": "Ἀρχαία Ἑλληνική",
+    "count": 15150,
+    "marks": "Breathings & accents"
+  },
+  {
     "code": "es",
     "name": "Spanish",
     "native": "Español",

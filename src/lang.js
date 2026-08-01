@@ -23,12 +23,14 @@ export const D = (s) => db.display(s);
 // localized UI flavor from the active pack
 export const S = (key) => D(db.packStrings()[key] || FALLBACK_STRINGS[key] || key);
 
-// fold for comparisons: lowercase, strip combining marks (macrons, accents, pinyin tones)
+// fold for comparisons: lowercase, strip combining marks (macrons, accents,
+// pinyin tones, Greek breathings), final sigma folded so ς and σ match
 export const fold = (s) =>
   s
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
     .toLowerCase()
+    .replace(/ς/g, 'σ')
     .trim();
 
 export const shuffle = (a) => {
