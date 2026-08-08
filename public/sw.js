@@ -1,4 +1,4 @@
-const VERSION = 'v3.0.3';
+const VERSION = 'v3.1.0';
 const CACHE = `vernacular-${VERSION}`;
 // Only stable URLs go here. The app bundle ships as content-hashed files under
 // /assets/, which the stale-while-revalidate handler below picks up on first
@@ -63,6 +63,19 @@ self.addEventListener('fetch', (event) => {
         .catch(() => cached);
       return cached || fresh;
     })
+  );
+});
+
+// iOS occasionally rotates the push endpoint. Re-subscribe right away so a
+// live subscription exists; the app re-registers it with the server on its
+// next open (the worker itself holds no credentials).
+self.addEventListener('pushsubscriptionchange', (event) => {
+  const key = event.oldSubscription?.options?.applicationServerKey;
+  if (!key) return;
+  event.waitUntil(
+    self.registration.pushManager
+      .subscribe({ userVisibleOnly: true, applicationServerKey: key })
+      .catch(() => {})
   );
 });
 

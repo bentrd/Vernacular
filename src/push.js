@@ -16,6 +16,30 @@ function urlB64ToUint8Array(base64String) {
   return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
 }
 
+// Which languages this device wants reminders for, remembered locally so a
+// lost subscription can be rebuilt without asking the user anything.
+const PUSH_LANGS_KEY = 'vernacular:push-langs';
+
+function pushLangs() {
+  try {
+    const list = JSON.parse(localStorage.getItem(PUSH_LANGS_KEY) || '[]');
+    return Array.isArray(list) ? list.filter((c) => typeof c === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function rememberPushLang(code, on) {
+  try {
+    const list = new Set(pushLangs());
+    if (on) list.add(code);
+    else list.delete(code);
+    localStorage.setItem(PUSH_LANGS_KEY, JSON.stringify([...list]));
+  } catch {
+    /* private mode */
+  }
+}
+
 export function pushSupported() {
   return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
 }
@@ -74,12 +98,32 @@ export async function enableLang(lang) {
     reminders: db.reminders(lang),
     stats: db.statsPayload(lang),
   });
+  rememberPushLang(lang, true);
 }
 
 export async function disableLang(lang) {
+  rememberPushLang(lang, false);
   const sub = await getSubscription();
   if (!sub) return;
   await post({ op: 'disableLang', endpoint: sub.endpoint, lang }).catch(() => {});
+}
+
+// iOS drops or rotates push subscriptions from time to time, and the cron
+// deletes an endpoint the moment Apple reports it dead; either way reminders
+// stop and nothing used to bring them back. Called on every app open: if this
+// device wants reminders but the server no longer has a live row for the
+// current endpoint, subscribe again and re-post the local schedule.
+export async function repairSubscription() {
+  if (!pushSupported() || Notification.permission !== 'granted') return;
+  const wanted = pushLangs();
+  if (!wanted.length) return;
+  try {
+    const status = await getStatus();
+    if (status.subscribed) return;
+    for (const lang of wanted) await enableLang(lang);
+  } catch {
+    /* offline or signed out: the next open tries again */
+  }
 }
 
 // Mirror one language's schedule to the server. Returns false when it did not
@@ -136,6 +180,9 @@ export async function syncFromServer() {
 
   let added = 0;
   for (const [code, info] of Object.entries(status.langs || {})) {
+    // Mirror the server's enabled flags: devices subscribed before the local
+    // memory existed learn their own state here, so a later loss is repairable.
+    rememberPushLang(code, !!info?.enabled);
     const delivered = info?.delivered ?? 0;
     if (delivered > 0) {
       try {
