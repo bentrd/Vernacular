@@ -20,6 +20,10 @@
   --radius: 18px;
   --tabbar-h: 78px;
   --sheet-ease: cubic-bezier(.32, .72, .28, 1);
+  /* Height of the flat band that owns the status-bar strip. WebKit samples a
+     5px-tall strip at the very top of the page, so the band needs a floor for
+     the cases where there is no inset to speak of (in-browser, iPad, SE). */
+  --statusbar-h: max(env(safe-area-inset-top), 10px);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -43,9 +47,12 @@
 
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
-/* iOS 26 paints the standalone status bar by sampling the page's own root and
-   fixed-element backgrounds (theme-color is ignored), so html/body must carry
-   the real app color. The black sheet plate lives on .indent-bg::after. */
+/* iOS 26 colors the standalone status bar from the page itself, not from
+   theme-color: WebKit snapshots five points across a 5px-tall strip at the top
+   of the page and, if those samples disagree (Lab distance > 30), gives up and
+   falls back to the document background. So html/body carry the app color as
+   the fallback, and .statusbar-veil keeps that strip a single flat color --
+   see the note there for why it must not be translucent or blurred. */
 html { height: 100%; background: var(--bg); }
 
 body {
@@ -64,18 +71,11 @@ body {
 #root { height: 100%; }
 
 /* Drawer.Indent holds the whole app and scales back when a sheet opens;
-   Drawer.IndentBackground is the dark plate revealed behind it. The paint
-   sits on an absolute child: a background on the fixed element itself would
-   be picked up by the iOS 26 status-bar sampler and render the bar black. */
+   Drawer.IndentBackground is the dark plate revealed behind it. */
 .indent-bg {
   position: fixed;
   inset: 0;
   z-index: 0;
-}
-.indent-bg::after {
-  content: '';
-  position: absolute;
-  inset: 0;
   background: #000;
 }
 .indent {
@@ -95,8 +95,13 @@ body {
   .indent, .indent[data-active] { transform: none; transition: none; }
 }
 
+/* The inset lives here rather than on .view so the scroller itself starts
+   below the status bar. Nothing then paints into the sampled strip -- not the
+   scrolled content, not iOS's overlay scroll indicator, not the composited
+   layer the long Library list gets promoted to. */
 .shell {
   height: 100%;
+  padding-top: env(safe-area-inset-top);
   display: flex;
   flex-direction: column;
 }
@@ -109,22 +114,27 @@ body {
   overscroll-behavior: contain;
 }
 
-/* Same trick as .indent-bg: the glass lives on a child so the fixed element
-   itself stays paint-free for the status-bar color sampler. */
+/* The status-bar strip, held at one flat opaque color so iOS's sampler always
+   agrees with itself and tints the bar to match the app.
+   It has to be opaque and unfiltered: a translucent band samples whatever
+   scrolls beneath it, and a backdrop-filter over a composited scroller (which
+   is exactly what the Library word list is) snapshots as black -- that was the
+   black bar. It sits above .indent so the screens outside the tab shell
+   (welcome, onboarding) are covered too.
+   While a sheet is open the app scales back over the black plate and the top
+   of the screen genuinely is black, so the band follows it there. */
 .statusbar-veil {
   position: fixed;
   top: 0; left: 0; right: 0;
-  height: env(safe-area-inset-top);
+  height: var(--statusbar-h);
   z-index: 60;
   pointer-events: none;
+  background: var(--bg);
+  transition: background .5s var(--sheet-ease);
 }
-.statusbar-veil::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: color-mix(in srgb, var(--bg) 70%, transparent);
-  -webkit-backdrop-filter: saturate(180%) blur(20px);
-  backdrop-filter: saturate(180%) blur(20px);
+body:has(.indent[data-active]) .statusbar-veil { background: #000; }
+@media (prefers-reduced-motion: reduce) {
+  .statusbar-veil { transition: none; }
 }
 
 button { font: inherit; color: inherit; background: none; border: none; cursor: pointer; }
@@ -139,7 +149,7 @@ input { font: inherit; color: inherit; }
 .view {
   max-width: 620px;
   margin: 0 auto;
-  padding: calc(env(safe-area-inset-top) + 22px) 20px 36px;
+  padding: 22px 20px 36px;
 }
 .panel { animation: fadein .22s ease; }
 .panel:focus-visible { outline: none; }
