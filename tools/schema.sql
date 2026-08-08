@@ -55,6 +55,21 @@ create table if not exists word_tombstones (
   primary key (user_id, lang, word_id)
 );
 
+-- Long-lived device sessions. The Neon Auth cookie is cross-site and Safari
+-- evicts it within days inside an installed PWA; each device therefore holds
+-- an opaque first-party token (stored hashed) with a sliding expiry, minted
+-- while the Neon session is alive and honored by the API long after it dies.
+create table if not exists device_sessions (
+  token_hash text primary key,               -- sha-256 hex of the vds_ token
+  user_id text not null,                     -- Neon Auth user id (no FK: app_users may not exist yet)
+  email text not null default '',
+  name text not null default '',
+  created_at timestamptz not null default now(),
+  last_seen_at timestamptz not null default now(),
+  expires_at timestamptz not null
+);
+create index if not exists device_sessions_user_idx on device_sessions (user_id);
+
 -- Push subscriptions, moved off the Vercel Blob JSON. user_id is null for
 -- legacy subscriptions imported from the blob until their device re-enables.
 create table if not exists push_subs (

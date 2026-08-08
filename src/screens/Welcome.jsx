@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { sendMagicLink, signInWithGoogle } from '../auth.js';
+import { useEffect, useState } from 'react';
+import { GAUTH_ERROR_KEY, sendMagicLink, signInWithGoogle } from '../auth.js';
 import { toast } from '../ui/toast.js';
 import { GoogleIcon, MailIcon, SpinnerIcon } from '../icons.jsx';
 
@@ -10,6 +10,18 @@ export function Welcome() {
   const [email, setEmail] = useState('');
   const [busy, setBusy] = useState(null); // 'link' | 'google' | null
   const [sentTo, setSentTo] = useState(null);
+
+  // A failed Google round trip lands back here with a flag set at boot.
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem(GAUTH_ERROR_KEY)) {
+        sessionStorage.removeItem(GAUTH_ERROR_KEY);
+        toast('Google sign-in didn’t complete, try again');
+      }
+    } catch {
+      /* private mode */
+    }
+  }, []);
 
   async function submitEmail(e) {
     e.preventDefault();

@@ -43,11 +43,14 @@
 
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
-html { height: 100%; }
+/* iOS 26 paints the standalone status bar by sampling the page's own root and
+   fixed-element backgrounds (theme-color is ignored), so html/body must carry
+   the real app color. The black sheet plate lives on .indent-bg::after. */
+html { height: 100%; background: var(--bg); }
 
 body {
   font-family: var(--sans);
-  background: #000;
+  background: var(--bg);
   color: var(--text);
   height: 100vh;
   height: 100dvh;
@@ -61,12 +64,19 @@ body {
 #root { height: 100%; }
 
 /* Drawer.Indent holds the whole app and scales back when a sheet opens;
-   Drawer.IndentBackground is the dark plate revealed behind it. */
+   Drawer.IndentBackground is the dark plate revealed behind it. The paint
+   sits on an absolute child: a background on the fixed element itself would
+   be picked up by the iOS 26 status-bar sampler and render the bar black. */
 .indent-bg {
   position: fixed;
   inset: 0;
-  background: #000;
   z-index: 0;
+}
+.indent-bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: #000;
 }
 .indent {
   position: relative;
@@ -99,12 +109,19 @@ body {
   overscroll-behavior: contain;
 }
 
+/* Same trick as .indent-bg: the glass lives on a child so the fixed element
+   itself stays paint-free for the status-bar color sampler. */
 .statusbar-veil {
   position: fixed;
   top: 0; left: 0; right: 0;
   height: env(safe-area-inset-top);
   z-index: 60;
   pointer-events: none;
+}
+.statusbar-veil::after {
+  content: '';
+  position: absolute;
+  inset: 0;
   background: color-mix(in srgb, var(--bg) 70%, transparent);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
   backdrop-filter: saturate(180%) blur(20px);

@@ -75,7 +75,9 @@ export function App({
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
   }, [route]);
 
-  // Words delivered by push while the app was closed.
+  // Words delivered by push while the app was closed. The repair pass runs
+  // first so a subscription iOS dropped is re-registered before the sync
+  // heartbeat reports against it.
   useEffect(() => {
     const sync = () => {
       if (session) return;
@@ -83,7 +85,7 @@ export function App({
         if (added > 0) toast(`${added} new word${added === 1 ? '' : 's'} from your notifications`);
       });
     };
-    sync();
+    push.repairSubscription().catch(() => {}).finally(sync);
     const onVisible = () => document.visibilityState === 'visible' && sync();
     document.addEventListener('visibilitychange', onVisible);
     return () => document.removeEventListener('visibilitychange', onVisible);
